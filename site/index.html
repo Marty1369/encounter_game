@@ -41,8 +41,7 @@
     <button id="roleA" onclick="setRole('admin')" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;">Game creator</button>
   </div>
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-    <button onclick="clockPlus()" title="Extend the live game by 1 minute" style="border:1px solid #3f3f46;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:500;font-size:11.5px;background:transparent;color:#a1a1aa;">Clock +1 min</button>
-    <button onclick="resetView()" style="border:1px solid #3f3f46;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:500;font-size:11.5px;background:transparent;color:#a1a1aa;">Reset</button>
+    <button onclick="resetView()" title="Return to the PIN screen" style="border:1px solid #3f3f46;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:500;font-size:11.5px;background:transparent;color:#a1a1aa;">Reset</button>
   </div>
 </div>
 
@@ -85,7 +84,7 @@ function clockPlus(){ // extend the live game by 1 min (real analogue of the san
   adminData?.games?.filter(g=>g.status==="live").forEach(g=>a("admin_extend",{p_game:g.id,p_minutes:1}));
   toast("Live game clock +1 min");
 }
-function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:""};localStorage.removeItem("q_token");localStorage.removeItem("q_pin");renderPlayer();}
+function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:""};localStorage.removeItem("q_token");localStorage.removeItem("q_pin");localStorage.removeItem("q_outbox");renderPlayer();}
 
 // ===================== PLAYER =====================
 const TH=["primary","onPrimary","bg","ink","inkSoft","muted","card","field","line","fontDisplay","fontBody","displayWeight","displayTracking","rFrame","rCard","rBtn","rInput"];
@@ -99,7 +98,7 @@ const serverNow=()=>Date.now()+pOffset;
 
 async function pLookup(){
   const pin=pState.pin.trim(); if(pin.length<4){pState.active=null;renderPlayer();return;}
-  try{const g=await rpc("get_game_by_pin",{p_pin:pin});pState.active=g.error?null:g;if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);}catch{pState.active=null;}
+  try{const g=await rpc("get_game_by_pin",{p_pin:pin});if(pState.pin.trim()!==pin)return;pState.active=g.error?null:g;if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);}catch{if(pState.pin.trim()===pin)pState.active=null;}
   renderPlayer();
 }
 async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pState.name.trim())return; pState.screen="teams"; renderPlayer(); }
@@ -159,7 +158,7 @@ function pPaused(){
     <div style="font-size:12px;color:var(--th-muted);">Your timer is frozen — you won't lose any time.</div></div>`;
 }
 // ---- notices (toast admin messages, e.g. discarded task) ----
-const shownNotices=new Set(JSON.parse(localStorage.getItem("q_notices")||"[]"));
+const shownNotices=new Set((()=>{try{return JSON.parse(localStorage.getItem("q_notices")||"[]")}catch{return[]}})());
 async function pNotices(){
   const t=pToken();if(!t)return;
   try{const ns=await rpc("get_notices",{p_session:t});if(!Array.isArray(ns))return;
@@ -254,7 +253,7 @@ function pTeams(){
 function pBlock(b){
   if(b.type==="text")return `<div style="font-size:14px;line-height:1.55;color:var(--th-ink);">${esc(b.text!=null?b.text:(b.content||""))}</div>`;
   const url=b.url!=null?b.url:(b.content||"");
-  if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(url))}');"></div>`;
+  if(b.type==="image")return `<img src="${esc(safeUrl(url))}" alt="" loading="lazy" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);display:block;background:var(--th-field);">`;
   const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
   const gl={video:"▶",audio:"♪"}[b.type]||"↗";
   return `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:28px;height:28px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="font-weight:600;font-size:12.5px;">${lbl}</span></a>`;
@@ -266,7 +265,7 @@ function pGame(){
   if(pGame._lastOrd!==q.ord){pFeedback=null;pAnswer="";pGame._lastOrd=q.ord;}
   const blocks=(q.blocks||[]).map(b=>{
     if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);">${esc(b.text)}</div>`;
-    if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(b.url))}');"></div>`;
+    if(b.type==="image")return `<img src="${esc(safeUrl(b.url))}" alt="" loading="lazy" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);display:block;background:var(--th-field);">`;
     const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
     const gl={video:"▶",audio:"♪",url:"↗",link:"↗"}[b.type]||"↗";
     return `<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="display:flex;flex-direction:column;min-width:0;"><span style="font-weight:600;font-size:13px;">${lbl}</span><span style="font-size:11px;color:var(--th-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(safeUrl(b.url))}</span></span></a>`;
@@ -609,7 +608,7 @@ function wqEditor(q){
 }
 function addWQ(){wiz.questions.push(blankQ());wiz.sel=wiz.questions.length-1;drawAdmin();}
 function delWQ(i){wiz.questions.splice(i,1);wiz.sel=Math.max(0,wiz.sel-(i<=wiz.sel?1:0));drawAdmin();}
-function moveQ(i,d){const n=i+d;if(n<0||n>=wiz.questions.length)return;const x=wiz.questions;[x[i],x[n]]=[x[n],x[i]];drawAdmin();}
+function moveQ(i,d){const n=i+d;if(n<0||n>=wiz.questions.length)return;const x=wiz.questions;[x[i],x[n]]=[x[n],x[i]];if(wiz.sel===i)wiz.sel=n;else if(wiz.sel===n)wiz.sel=i;drawAdmin();}
 function addWBlock(){if(!wiz.wbContent.trim())return;wiz.questions[wiz.sel].blocks.push({type:wiz.wbType,content:wiz.wbContent.trim()});wiz.wbContent="";drawAdmin();}
 function delWBlock(i){wiz.questions[wiz.sel].blocks.splice(i,1);drawAdmin();}
 function addWHint(){wiz.questions[wiz.sel].hints.push({reveal_after_min:0,blocks:[],_bt:"text",_bc:""});drawAdmin();}
@@ -657,6 +656,7 @@ async function saveWiz(status){
   if(res.error){toast("Error: "+res.error);return;}
   if(status==="ready")await a("admin_set_status",{p_game:res.id,p_status:"ready"});
   else if(status==="live")await a("admin_activate",{p_game:res.id});
+  else await a("admin_set_status",{p_game:res.id,p_status:"draft"});
   toast("Saved · PIN "+res.pin);selGame=null;adminData=await a("admin_list");adminGo("games");
 }
 function downloadXlsxTemplate(){
@@ -714,7 +714,7 @@ function viewThemes(){
       <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:14px;color:#18181b;">${esc(t.name)}</strong>
         <span style="display:flex;gap:4px;"><span style="width:16px;height:16px;border-radius:5px;background:${tk.primary};"></span><span style="width:16px;height:16px;border-radius:5px;background:${tk.secondary||tk.primary};"></span></span></div>
       <span style="font-size:11.5px;color:#a1a1aa;line-height:1.45;">${esc(tk.desc||"")}</span>
-      <span style="font-size:11px;font-weight:600;color:${used?"#15803d":"#a1a1aa"};">${used?"Used by "+used.join(", "):"Not in use"}</span></button>`;}).join("");
+      <span style="font-size:11px;font-weight:600;color:${used?"#15803d":"#a1a1aa"};">${used?"Used by "+used.map(esc).join(", "):"Not in use"}</span></button>`;}).join("");
   return `<section style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Themes</h1>
     <p style="margin:5px 0 18px;font-size:12.5px;color:#71717a;">Five curated presets. Each changes palette, typeface <em>and geometry</em> — corner radii, button shape, frame. Click one to preview it in the Player view.</p>
