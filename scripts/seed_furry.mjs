@@ -19,8 +19,8 @@ const MEDIA = {
   U1: [["video", "Spaceship.mp4"], ["image", "Intro task.png"]],
   U2: [["video", "2nd task video.mp4"]],
   U6: [["image", "sachmatu_diagrama.png"]],
-  U10: [["image", "kelmu_tinklelis_skaiciai.png"], ["image", "kelmu_tinklelis_raides.png"]],
-  U12: [["image", "sudoku.png"]],
+  U10: [["image", "kelmu_tinklelis_tuscias.png"]],   // question shows the EMPTY grid; numbers/letters are hints
+  U12: [["image", "sudoku.png"]],                    // source names it sudoku_raketa.png (not in bucket); sudoku.png is the puzzle
 };
 const ALT = { U11: ["FABIANAS"] };   // spec alt (after FA_ prefix stripped)
 const MEDIA_FILES = new Set(Object.values(MEDIA).flat().map(([, f]) => f.toLowerCase().replace(/\.[^.]+$/, "")));
@@ -39,16 +39,18 @@ const stripFA = (s) => String(s).trim().replace(/^FA_?/i, "");
 // text blocks from the xlsx "Blocks" cell (drop media-ref lines, keep instruction text)
 function textBlocks(cell) {
   const out = [];
-  for (let line of String(cell).split(/\r?\n/)) {
-    line = line.trim(); if (!line) continue;
-    const m = line.match(/^([a-zA-Zžčšįė]+)\s*:\s*(.*)$/);
-    const label = m ? m[1].toLowerCase() : "";
-    if (/^(video|image|img|foto|paveiksl|vaizdas|nuotrauka)/.test(label)) continue;
-    const txt = ((label === "text" || label === "tekstas") ? m[2] : line).trim();
-    const lc = txt.toLowerCase();
-    if (MEDIA_FILES.has(lc) || /\.(png|jpe?g|mp4|pdf)$/i.test(txt)) continue;
-    if (txt.replace(/[\s.,;:!?–—_-]/g, "").length < 2) continue;
-    out.push({ type: "text", text: txt });
+  for (const raw of String(cell).split(/\r?\n/)) {
+    for (let line of raw.split(/\s*\|\s*/)) {   // also split "text: … | image: …" cells
+      line = line.trim(); if (!line) continue;
+      const m = line.match(/^([a-zA-Zžčšįė]+)\s*:\s*(.*)$/);
+      const label = m ? m[1].toLowerCase() : "";
+      if (/^(video|image|img|foto|paveiksl|vaizdas|nuotrauka)/.test(label)) continue;
+      const txt = ((label === "text" || label === "tekstas") ? m[2] : line).trim();
+      const lc = txt.toLowerCase();
+      if (MEDIA_FILES.has(lc) || /\.(png|jpe?g|mp4|pdf)$/i.test(txt)) continue;
+      if (txt.replace(/[\s.,;:!?–—_-]/g, "").length < 2) continue;
+      out.push({ type: "text", text: txt });
+    }
   }
   return out;
 }

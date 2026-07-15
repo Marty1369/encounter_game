@@ -263,7 +263,7 @@ function pTeams(){
 }
 // one themed content block (text/image/video/audio/link) — for hints (and reusable)
 function pBlock(b){
-  if(b.type==="text")return `<div style="font-size:14px;line-height:1.55;color:var(--th-ink);">${esc(b.text!=null?b.text:(b.content||""))}</div>`;
+  if(b.type==="text")return `<div style="font-size:14px;line-height:1.55;color:var(--th-ink);white-space:pre-line;">${esc(b.text!=null?b.text:(b.content||""))}</div>`;
   const url=b.url!=null?b.url:(b.content||"");
   if(b.type==="image")return `<img src="${esc(safeUrl(url))}" alt="" loading="lazy" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);display:block;background:var(--th-field);">`;
   const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
@@ -276,7 +276,7 @@ function pGame(){
   if(!q){$("pscreen").innerHTML=`<div style="padding:40px 24px;text-align:center;color:var(--th-inkSoft);animation:fadeup .25s ease;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;">Getting things ready…</div><div style="font-size:13.5px;color:var(--th-muted);margin-top:8px;">This game has no challenges yet.</div></div>`;return;}
   if(pGame._lastOrd!==q.ord){pFeedback=null;pAnswer="";pGame._lastOrd=q.ord;}
   const blocks=(q.blocks||[]).map(b=>{
-    if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);">${esc(b.text)}</div>`;
+    if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);white-space:pre-line;">${esc(b.text)}</div>`;
     if(b.type==="image")return `<img src="${esc(safeUrl(b.url))}" alt="" loading="lazy" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);display:block;background:var(--th-field);">`;
     const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
     const gl={video:"▶",audio:"♪",url:"↗",link:"↗"}[b.type]||"↗";
