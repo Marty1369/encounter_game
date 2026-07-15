@@ -219,9 +219,9 @@ function pGame(){
   const blocks=(q.blocks||[]).map(b=>{
     if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);">${esc(b.text)}</div>`;
     if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(b.url)}');"></div>`;
-    if(b.type==="video")return `<video controls playsinline preload="metadata" src="${esc(b.url)}" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:#000;"></video>`;
-    const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open";
-    return `<a href="${esc(b.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">▶</span><span style="font-weight:600;font-size:13px;">${lbl}</span></a>`;
+    const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
+    const gl={video:"▶",audio:"♪",url:"↗",link:"↗"}[b.type]||"↗";
+    return `<a href="${esc(b.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="display:flex;flex-direction:column;min-width:0;"><span style="font-weight:600;font-size:13px;">${lbl}</span><span style="font-size:11px;color:var(--th-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.url)}</span></span></a>`;
   }).join("");
   const hints=(st.hints||[]).sort((a,b)=>a.ord-b.ord);
   for(const h of hints)if(h.unlocked&&!pRevealed.has(h.id)){pRevealed.add(h.id);rpc("mark_hint_revealed",{p_session:pToken(),p_hint_id:h.id}).catch(()=>{});}
@@ -529,7 +529,8 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
   const live=adminData.games.find(g=>g.id===id)||{};
   const now=Date.parse(m.server_now),exp=m.expires_at?Math.max(0,(Date.parse(m.expires_at)-now)/1000):null;
   const done=m.teams.filter(t=>t.finished_at).length;
-  const stats=[["Teams",m.teams.length],["Questions",m.total_questions],["Finished",done],["Time left",exp!=null?fmt(exp):"—"]];
+  const players=m.teams.reduce((n,t)=>n+(t.players||0),0);
+  const stats=[["Teams",m.teams.length],["Players",players],["Questions",m.total_questions],["Finished",done],["Time left",exp!=null?fmt(exp):"—"]];
   const head=$("monHead");if(head)head.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
@@ -545,6 +546,7 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
         <div style="display:flex;align-items:baseline;gap:9px;"><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
         <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
+          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':'#6366f1'};">● ${fin?'Finished':'Playing'}</span>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
       <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div></div>`;}).join("")
     :'<div style="border:1px dashed #e4e4e7;border-radius:12px;padding:24px;text-align:center;color:#a1a1aa;font-size:13px;">No teams yet. Join from the Player view.</div>'}</div></div>`;
