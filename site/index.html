@@ -138,13 +138,25 @@ async function pSubmit(){
 
 function renderPlayer(){
   const s=pState;
-  if(pToken()&&pGameState&&(s.screen==="game"||s.screen==="done")){
+  if(pToken()&&pGameState){
     if(pGameState.finished||pGameState.expired)return pDone();
+    if(pGameState.started===false)return pCountdown();
+    if(s.screen==="lobby")return pLobby();
     return pGame();
   }
-  if(s.screen==="lobby"&&pGameState)return pLobby();
   if(s.screen==="teams")return pTeams();
   return pJoinScreen();
+}
+// ---- Countdown to start ----
+function pCountdown(){
+  const st=pGameState;
+  const rem=st.starts_at?(Date.parse(st.starts_at)-serverNow())/1000:0;
+  $("pscreen").innerHTML=`<div style="padding:40px 24px;display:flex;flex-direction:column;gap:16px;text-align:center;animation:fadeup .25s ease;min-height:640px;justify-content:center;">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--th-muted);">${esc(st.game_name||"")}</div>
+    <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:26px;letter-spacing:var(--th-displayTracking);">Get ready, ${esc(st.team.name)}</div>
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);margin-top:6px;">Game starts in</div>
+    <div id="pCd" style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:56px;font-variant-numeric:tabular-nums;color:var(--th-primary);">${rem>0?fmt(rem):"0:00"}</div>
+    <div style="font-size:13px;color:var(--th-inkSoft);">The first challenge unlocks automatically when the timer hits zero.</div></div>`;
 }
 // ---- Lobby ----
 function pLobby(){
@@ -255,6 +267,7 @@ function pGame(){
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;line-height:1.2;letter-spacing:var(--th-displayTracking);">${esc(q.title)}</div>
       ${q.intro?`<div style="font-size:13px;color:var(--th-inkSoft);font-style:italic;margin-top:-4px;">${esc(q.intro)}</div>`:""}
       ${blocks}
+      ${q.info?`<div style="background:color-mix(in srgb,var(--th-primary) 9%,var(--th-card));border:1px solid color-mix(in srgb,var(--th-primary) 28%,var(--th-line));border-left:3px solid var(--th-primary);border-radius:var(--th-rInput);padding:12px 14px;font-size:13.5px;line-height:1.55;color:var(--th-ink);"><span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--th-primary);display:block;margin-bottom:4px;">ⓘ Important</span>${esc(q.info)}</div>`:""}
       <div style="display:flex;gap:8px;margin-top:2px;">
         <input id="answer" value="${esc(pAnswer)}" oninput="pAnswer=this.value" onkeydown="if(event.key==='Enter')pSubmit()" placeholder="Your answer" style="flex:1;min-width:0;padding:13px 15px;font-size:15.5px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
         <button onclick="pSubmit()" style="border:0;cursor:pointer;padding:0 22px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:14.5px;background:var(--th-primary);color:var(--th-onPrimary);min-height:48px;">Submit</button></div>
@@ -291,7 +304,14 @@ async function pDone(){
 }
 
 // elapsed ticker
-setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished||!pGameState.activated_at)return;
+setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished)return;
+  if(pGameState.started===false){ // pre-start countdown + auto-start
+    const rem=pGameState.starts_at?(Date.parse(pGameState.starts_at)-serverNow())/1000:0;
+    const cd=$("pCd");if(cd)cd.textContent=rem>0?fmt(rem):"0:00";
+    if(rem<=0){pState.screen="game";pRefresh();}
+    return;
+  }
+  if(!pGameState.activated_at)return;
   const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(pGameState.activated_at))/1000);
   let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due)pRefresh();},1000);
 setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();}},10000);
@@ -305,15 +325,26 @@ async function renderAdmin(){
   drawAdmin();
 }
 function adminLogin(){
-  $("admin").innerHTML=`<div style="max-width:380px;margin:14vh auto;padding:0 18px;">
+  $("admin").innerHTML=`<div style="max-width:380px;margin:12vh auto;padding:0 18px;">
     <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:600;text-align:center;font-size:22px;">Game creator</h1>
-    <p style="text-align:center;color:#71717a;margin-top:6px;font-size:13px;">Enter the admin passcode.</p>
+    <p style="text-align:center;color:#71717a;margin-top:6px;font-size:13px;">Sign in to manage games.</p>
     <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:16px;margin-top:16px;">
-      <input id="acode" type="password" placeholder="Passcode" style="width:100%;padding:11px 13px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter')adminAuth()">
-      <button onclick="adminAuth()" style="width:100%;margin-top:10px;border:0;cursor:pointer;padding:11px;border-radius:10px;font-weight:600;background:#18181b;color:#fff;">Unlock</button>
+      <label style="font-size:11px;font-weight:600;color:#71717a;">Email</label>
+      <input id="aemail" type="email" autocomplete="username" placeholder="you@example.com" style="width:100%;margin-top:4px;padding:11px 13px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter')document.getElementById('apass').focus()">
+      <label style="font-size:11px;font-weight:600;color:#71717a;display:block;margin-top:10px;">Password</label>
+      <input id="apass" type="password" autocomplete="current-password" placeholder="••••••••" style="width:100%;margin-top:4px;padding:11px 13px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter')adminAuth()">
+      <button onclick="adminAuth()" style="width:100%;margin-top:12px;border:0;cursor:pointer;padding:11px;border-radius:10px;font-weight:600;background:#18181b;color:#fff;">Log in</button>
       <div id="acodeErr" style="color:#dc2626;font-size:12.5px;margin-top:8px;"></div></div></div>`;
 }
-async function adminAuth(){CODE=$("acode").value;try{const r=await a("admin_list");if(r.error){$("acodeErr").textContent="Wrong passcode.";CODE="";return;}sessionStorage.setItem("admin_code",CODE);adminData=r;drawAdmin();}catch{$("acodeErr").textContent="Error.";}}
+async function adminAuth(){
+  const email=$("aemail").value, pass=$("apass").value;
+  try{
+    const res=await rpc("admin_login",{p_email:email,p_password:pass});
+    if(res.error){$("acodeErr").textContent="Invalid email or password.";return;}
+    CODE=res.token;sessionStorage.setItem("admin_code",CODE);
+    adminData=await a("admin_list");drawAdmin();
+  }catch{$("acodeErr").textContent="Sign-in failed.";}
+}
 
 function sideMenu(){
   const items=[["games","Games"],["wizard","Create game"],["monitor","Live monitor"],["themes","Themes"]];
@@ -354,7 +385,22 @@ function viewGames(){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:18px;">${cards}</div></div>
     ${selGame?selectedDetail():""}</section>`;
 }
-async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
+let selRoster=null;
+async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});selRoster=await a("admin_roster",{p_game:id});drawAdmin();}
+function localDT(iso){if(!iso)return"";const d=new Date(iso);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());}
+async function setSchedule(id){const v=$("schedInput").value;const iso=v?new Date(v).toISOString():null;await a("admin_set_schedule",{p_game:id,p_starts_at:iso});toast("Start time saved");selectGame(id);}
+async function startNow(id){if(!confirm("Start the game now for all teams?"))return;await a("admin_start_now",{p_game:id});toast("Game started");adminData=await a("admin_list");selectGame(id);}
+async function toggleReg(id,open){await a("admin_set_registration",{p_game:id,p_open:open});toast(open?"Registration open":"Registration closed");selectGame(id);}
+async function showHintFor(teamId){
+  const res=await a("admin_team_hints",{p_team:teamId});const hs=res.hints||[];
+  if(!hs.length){toast("No hints on the team's current task");return;}
+  const next=hs.find(h=>!h.shown);
+  if(!next){toast("All hints already shown");return;}
+  await a("admin_show_hint",{p_team:teamId,p_hint:next.id});toast("Revealed hint "+next.ord+" to the team");
+  if(adminView==="monitor")startMon();
+}
+async function discardTask(gameId,ord,title){if(!confirm('Discard task "'+title+'"? Teams on it move on; time is credited back to teams that solved it.'))return;
+  await a("admin_discard_task",{p_game:gameId,p_ord:ord});toast("Task discarded");selectGame(gameId);}
 function selectedDetail(){
   const g=selGame,d=dot[g.status]||dot.draft;
   const actions=[];
@@ -376,7 +422,38 @@ function selectedDetail(){
       <div style="font-size:13px;color:#71717a;margin-top:4px;">${esc(g.description||"")}</div>
       <div style="font-size:12px;color:#71717a;margin-top:7px;">PIN <strong style="font-family:'Space Grotesk',monospace;">${g.pin}</strong> · ${g.questions.length} questions</div></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;">${actions.join("")}</div></div>
-    ${q?`<div style="border-top:1px solid #f0f0f1;padding-top:16px;"><h2 style="margin:0 0 12px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Questions</h2><div style="display:flex;flex-direction:column;gap:9px;">${q}</div></div>`:""}</div>`;
+    ${controlsPanel(g)}
+    ${q?`<div style="border-top:1px solid #f0f0f1;padding-top:16px;"><h2 style="margin:0 0 12px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Questions</h2><div style="display:flex;flex-direction:column;gap:9px;">${qList(g)}</div></div>`:""}</div>`;
+}
+function statCard(k,v){return `<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${k}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${v}</div></div>`;}
+function qList(g){return g.questions.map((x,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(x.title)}${x.case_sensitive?' <span style="font-size:9px;color:#a1a1aa;text-transform:uppercase;letter-spacing:.06em;">· case-sensitive</span>':''}</strong>
+    <span style="display:flex;gap:8px;align-items:baseline;"><span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(x.answer||"")}</strong></span>
+    <button onclick="discardTask('${g.id}',${x.ord},'${esc(x.title).replace(/'/g,"")}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;">Discard</button></span></div>
+    ${x.intro?`<div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(x.intro)}</div>`:""}
+    ${x.info?`<div style="font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:6px 9px;margin-top:6px;">ⓘ ${esc(x.info)}</div>`:""}
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${(x.blocks||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.blocks.length} blocks</span>`:""}${(x.hints||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.hints.length} hints</span>`:""}</div></div>`).join("");
+}
+function controlsPanel(g){
+  const r=selRoster||{}; const canRun=(g.status==="live"||g.status==="ready");
+  const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
+    <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></div>
+    <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
+  return `<div style="border-top:1px solid #f0f0f1;padding-top:16px;display:flex;flex-direction:column;gap:14px;">
+    ${canRun?`<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Scheduled start · auto-starts, or start early</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="datetime-local" id="schedInput" value="${localDT(g.starts_at)}" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;color:#18181b;">
+        <button onclick="setSchedule('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Set</button>
+        <button onclick="startNow('${g.id}')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Start now</button></div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Registration</label>
+        <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>
+    </div>`:""}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+      ${statCard("Status", dot[g.status][1])}${statCard("Teams", r.team_count??0)}${statCard("Players", r.player_count??0)}${statCard("Starts", g.starts_at?new Date(g.starts_at).toLocaleString():"—")}</div>
+    ${(r.teams||[]).length?`<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
+  </div>`;
 }
 async function setStatus(id,s){await a("admin_set_status",{p_game:id,p_status:s});toast("Status: "+s);adminData=await a("admin_list");selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
 async function adminExtend(id){await a("admin_extend",{p_game:id,p_minutes:15});toast("Extended 15 min");}
@@ -384,10 +461,11 @@ async function newRun(id){if(!confirm("New run wipes teams. Continue?"))return;a
 async function delGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};if(!confirm('Delete "'+(g.name||"this game")+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
 
 // ---- Wizard ----
-function blankQ(){return{title:"",answer:"",intro:"",blocks:[],hints:[]};}
+function blankQ(){return{title:"",answer:"",intro:"",info:"",case_sensitive:false,blocks:[],hints:[]};}
+function moveWHint(i,d){const n=i+d,hs=wiz.questions[wiz.sel].hints;if(n<0||n>=hs.length)return;[hs[i],hs[n]]=[hs[n],hs[i]];drawAdmin();}
 function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
 async function editWiz(id){const g=await a("admin_get_game",{p_game:id});wiz={id:g.id,name:g.name||"",description:g.description||"",duration_min:g.duration_min,max_teams:g.max_teams,theme_id:g.theme_id||adminData.themes[0]?.id||"",
-  questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),hints:(q.hints||[]).map(h=>({reveal_after_min:h.reveal_after_min,text:h.text||"",media_type:h.media_type||"",media_url:h.media_url||""}))})),sel:0,wbType:"text",wbContent:""};
+  questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",info:q.info||"",case_sensitive:!!q.case_sensitive,blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),hints:(q.hints||[]).map(h=>({reveal_after_min:h.reveal_after_min,text:h.text||"",media_type:h.media_type||"",media_url:h.media_url||""}))})),sel:0,wbType:"text",wbContent:""};
   wizStep=2;adminGo("wizard");}
 const setW=(f,v)=>{wiz[f]=v;};
 function viewWizard(){
@@ -434,15 +512,31 @@ function wqEditor(q){
     <span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
     <span style="flex:1;font-size:12.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
     <button onclick="delWBlock(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
-  const hints=q.hints.map((h,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
-    <span style="font-size:11px;color:#71717a;white-space:nowrap;">after</span><input type="number" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value" style="width:56px;padding:5px 7px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;"><span style="font-size:11px;color:#71717a;">min</span>
-    <input value="${esc(h.text)}" oninput="wiz.questions[wiz.sel].hints[${i}].text=this.value" placeholder="hint text" style="flex:1;min-width:0;padding:5px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;">
-    <button onclick="delWHint(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
+  const hints=q.hints.map((h,i)=>{const mt=h.media_type||"";
+    return `<div style="border:1px solid #e9e9eb;border-radius:9px;padding:9px 11px;background:#fff;display:flex;flex-direction:column;gap:6px;">
+    <div style="display:flex;align-items:center;gap:7px;">
+      <strong style="font-size:11.5px;color:#18181b;">Hint ${i+1}</strong>
+      <span style="font-size:10px;color:#a1a1aa;text-transform:uppercase;letter-spacing:.07em;">reveal after</span>
+      <input type="number" min="0" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value" style="width:52px;padding:4px 6px;border:1px solid #e4e4e7;border-radius:6px;font-size:12px;"><span style="font-size:10px;color:#a1a1aa;">min</span>
+      <span style="margin-left:auto;display:flex;gap:1px;">
+        <button onclick="moveWHint(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↑</button>
+        <button onclick="moveWHint(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↓</button>
+        <button onclick="delWHint(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;padding:2px 4px;">✕</button></span></div>
+    <input value="${esc(h.text)}" oninput="wiz.questions[wiz.sel].hints[${i}].text=this.value" placeholder="Hint text" style="padding:6px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;">
+    <div style="display:flex;gap:6px;">
+      <select onchange="wiz.questions[wiz.sel].hints[${i}].media_type=(this.value==='text'?'':this.value);drawAdmin()" style="width:120px;padding:6px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;background:#fff;">
+        ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["link","Link"]].map(o=>`<option value="${o[0]}" ${(mt||"text")===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
+      ${mt?`<input value="${esc(h.media_url||"")}" oninput="wiz.questions[wiz.sel].hints[${i}].media_url=this.value" placeholder="Content / URL" style="flex:1;min-width:0;padding:6px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;">`:`<span style="flex:1;font-size:11px;color:#a1a1aa;align-self:center;">Text-only hint</span>`}</div></div>`;}).join("");
   return `<div style="display:flex;flex-direction:column;gap:12px;border:1px solid #f0f0f1;border-radius:12px;padding:18px;background:#fafafa;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
       <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Correct answer</label><input value="${esc(q.answer)}" oninput="wiz.questions[wiz.sel].answer=this.value" placeholder="case-insensitive" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div></div>
     <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label><input value="${esc(q.intro)}" oninput="wiz.questions[wiz.sel].intro=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
+    <div style="display:flex;flex-direction:column;gap:4px;max-width:220px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Answer matching</label>
+      <select onchange="wiz.questions[wiz.sel].case_sensitive=(this.value==='cs')" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;background:#fff;">
+        <option value="ci" ${q.case_sensitive?"":"selected"}>Case-insensitive</option><option value="cs" ${q.case_sensitive?"selected":""}>Case-sensitive</option></select></div>
+    <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Important info (highlighted callout, optional)</label>
+      <textarea oninput="wiz.questions[wiz.sel].info=this.value" placeholder="Shown to players in a highlighted frame at the end of the question…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:56px;resize:vertical;">${esc(q.info||"")}</textarea></div>
     <div style="display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Content blocks — text, image, video, audio, link</label>${blocks}
       <div style="display:flex;gap:8px;flex-wrap:wrap;"><select onchange="wiz.wbType=this.value" style="padding:9px 10px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;background:#fff;">
         ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["url","Link"]].map(o=>`<option value="${o[0]}" ${wiz.wbType===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
@@ -490,7 +584,7 @@ function wizStep4(){
 }
 async function saveWiz(status){
   const payload={id:wiz.id||"",name:wiz.name,description:wiz.description,duration_min:wiz.duration_min,max_teams:wiz.max_teams,theme_id:wiz.theme_id,
-    questions:wiz.questions.map(q=>({title:q.title,intro:q.intro,answer:q.answer,alt_answers:[],
+    questions:wiz.questions.map(q=>({title:q.title,intro:q.intro,info:q.info||"",case_sensitive:!!q.case_sensitive,answer:q.answer,alt_answers:[],
       blocks:q.blocks.map(b=>b.type==="text"?{type:"text",text:b.content}:{type:b.type==="url"?"link":b.type,url:b.content}),
       hints:q.hints.map(h=>({reveal_after_min:h.reveal_after_min,text:h.text,media_type:h.media_type||"",media_url:h.media_url||""}))}))};
   const res=await a("admin_save_game",{p_payload:payload});
