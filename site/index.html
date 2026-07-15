@@ -67,12 +67,13 @@ async function rpc(fn,args){const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{metho
 let CODE=sessionStorage.getItem("admin_code")||"";
 const a=(fn,args={})=>rpc(fn,{p_code:CODE,...args});
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function safeUrl(u){try{const p=new URL(u,location.origin).protocol;return(p==="http:"||p==="https:")?u:"#";}catch{return"#";}}
 function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
 let toastT;function toast(m){const t=$("toast");t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,1900);}
 
 // ---- role ----
 let role="player";
-function setRole(r){role=r;
+function setRole(r){role=r;if(monTimer){clearInterval(monTimer);monTimer=null;}
   $("roleP").style.background=r==="player"?"#fafafa":"transparent";$("roleP").style.color=r==="player"?"#111113":"#a1a1aa";
   $("roleA").style.background=r==="admin"?"#fafafa":"transparent";$("roleA").style.color=r==="admin"?"#111113":"#a1a1aa";
   $("player").classList.toggle("hidden",r!=="player");
@@ -101,6 +102,7 @@ async function pLookup(){
   renderPlayer();
 }
 async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pState.name.trim())return; pState.screen="teams"; renderPlayer(); }
+function pJoinIndex(i){const t=(pState.active&&pState.active.teams||[])[i];if(t)pJoin(t.name);}
 async function pJoin(team){
   const t=(team||pState.team||"").trim(); if(!t)return;
   try{const res=await rpc("join_game",{p_pin:pState.pin,p_team:t,p_name:pState.name});
@@ -111,7 +113,10 @@ async function pJoin(team){
 }
 function joinErr(e){return{bad_team:"Bad team name.",bad_name:"Enter your name.",not_found:"Game not found.",not_live:"Game hasn't started.",expired:"Game has ended.",full:"Team limit reached."}[e]||"Error.";}
 function applyState(s){if(s.server_now)pOffset=Date.parse(s.server_now)-Date.now();pGameState=s;if(s.theme)applyTheme(s.theme);}
-async function pRefresh(){const t=pToken();if(!t)return;try{const s=await rpc("get_state",{p_session:t});if(s.error==="bad_session"){localStorage.removeItem("q_token");pState.screen="join";}else{applyState(s);}renderPlayer();}catch{}}
+async function pRefresh(){const t=pToken();if(!t)return;try{const s=await rpc("get_state",{p_session:t});
+  if(s.error==="bad_session"){localStorage.removeItem("q_token");pState.screen="join";}
+  else{applyState(s);if(!["lobby","game","done"].includes(pState.screen))pState.screen=s.finished?"done":"game";}
+  renderPlayer();}catch{}}
 
 // outbox
 const loadOut=()=>{try{return JSON.parse(localStorage.getItem("q_outbox")||"[]")}catch{return[]}};
@@ -134,7 +139,7 @@ async function pSubmit(){
 function renderPlayer(){
   const s=pState;
   if(pToken()&&pGameState&&(s.screen==="game"||s.screen==="done")){
-    if(pGameState.finished)return pDone();
+    if(pGameState.finished||pGameState.expired)return pDone();
     return pGame();
   }
   if(s.screen==="lobby"&&pGameState)return pLobby();
@@ -199,7 +204,7 @@ function pJoinScreen(){
 // ---- Team pick ----
 function pTeams(){
   const g=pState.active;
-  const chips=(g.teams||[]).map(t=>`<button onclick="pJoin('${esc(t.name).replace(/'/g,"\\'")}')" style="border:1px solid var(--th-line);cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px 17px;border-radius:var(--th-rCard);background:var(--th-card);color:var(--th-ink);min-height:58px;">
+  const chips=(g.teams||[]).map((t,i)=>`<button onclick="pJoinIndex(${i})" style="border:1px solid var(--th-line);cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px 17px;border-radius:var(--th-rCard);background:var(--th-card);color:var(--th-ink);min-height:58px;">
     <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:16px;">${esc(t.name)}</span>
     <span style="font-size:12px;color:var(--th-muted);">${t.players} ${t.players===1?"member":"members"}</span></span>
     <span style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--th-primary);white-space:nowrap;">Join</span></button>`).join("");
@@ -216,12 +221,14 @@ function pTeams(){
 // ---- Game ----
 function pGame(){
   const st=pGameState,q=st.question;
+  if(!q){$("pscreen").innerHTML=`<div style="padding:40px 24px;text-align:center;color:var(--th-inkSoft);animation:fadeup .25s ease;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;">Getting things ready…</div><div style="font-size:13.5px;color:var(--th-muted);margin-top:8px;">This game has no challenges yet.</div></div>`;return;}
+  if(pGame._lastOrd!==q.ord){pFeedback=null;pAnswer="";pGame._lastOrd=q.ord;}
   const blocks=(q.blocks||[]).map(b=>{
     if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);">${esc(b.text)}</div>`;
-    if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(b.url)}');"></div>`;
+    if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(b.url))}');"></div>`;
     const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
     const gl={video:"▶",audio:"♪",url:"↗",link:"↗"}[b.type]||"↗";
-    return `<a href="${esc(b.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="display:flex;flex-direction:column;min-width:0;"><span style="font-weight:600;font-size:13px;">${lbl}</span><span style="font-size:11px;color:var(--th-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.url)}</span></span></a>`;
+    return `<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="display:flex;flex-direction:column;min-width:0;"><span style="font-weight:600;font-size:13px;">${lbl}</span><span style="font-size:11px;color:var(--th-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(safeUrl(b.url))}</span></span></a>`;
   }).join("");
   const hints=(st.hints||[]).sort((a,b)=>a.ord-b.ord);
   for(const h of hints)if(h.unlocked&&!pRevealed.has(h.id)){pRevealed.add(h.id);rpc("mark_hint_revealed",{p_session:pToken(),p_hint_id:h.id}).catch(()=>{});}
@@ -230,12 +237,12 @@ function pGame(){
     let badge,badgeColor,body="";
     if(open){badge="unlocked";badgeColor="#15803d";
       body=`<div style="font-size:14px;color:var(--th-ink);margin-top:7px;line-height:1.55;">${esc(h.text||"")}</div>`+
-        (h.media_type==="image"&&h.media_url?`<div role="img" style="margin-top:8px;width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(h.media_url)}');"></div>`:"")+
-        (h.media_url&&h.media_type&&h.media_type!=="image"?`<a href="${esc(h.media_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:9px 14px;border:1px solid var(--th-line);border-radius:var(--th-rBtn);background:var(--th-field);text-decoration:none;color:var(--th-ink);font-weight:600;font-size:12.5px;">Open clue</a>`:"");
+        (h.media_type==="image"&&h.media_url?`<div role="img" style="margin-top:8px;width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(h.media_url))}');"></div>`:"")+
+        (h.media_url&&h.media_type&&h.media_type!=="image"?`<a href="${esc(safeUrl(h.media_url))}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:9px 14px;border:1px solid var(--th-line);border-radius:var(--th-rBtn);background:var(--th-field);text-decoration:none;color:var(--th-ink);font-weight:600;font-size:12.5px;">Open clue</a>`:"");
     }else{const rem=(Date.parse(st.activated_at)+h.reveal_after_min*60000-serverNow())/1000;badge="unlocks in "+fmt(rem>0?rem:0);badgeColor="var(--th-muted)";if(rem<=0)setTimeout(pRefresh,400);}
     return `<div style="border-top:1px solid var(--th-line);padding:11px 2px 4px;"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">
       <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${open?"var(--th-ink)":"var(--th-muted)"};">${title}</span>
-      <span style="font-size:11px;font-weight:600;color:${badgeColor};white-space:nowrap;font-variant-numeric:tabular-nums;">${badge}</span></div>${body}</div>`;
+      <span ${open?"":`class="pHintCd" data-unlock="${Date.parse(st.activated_at)+h.reveal_after_min*60000}"`} style="font-size:11px;font-weight:600;color:${badgeColor};white-space:nowrap;font-variant-numeric:tabular-nums;">${badge}</span></div>${body}</div>`;
   }).join(""):`<div style="font-size:12.5px;color:var(--th-muted);">No hints for this challenge.</div>`;
   const fb=pFeedback?`<div style="font-size:13px;font-weight:600;text-align:center;padding:9px 12px;border-radius:var(--th-rInput);background:${pFeedback.bg};color:${pFeedback.color};animation:${pFeedback.anim};">${esc(pFeedback.msg)}</div>`:"";
   $("pscreen").innerHTML=`<div style="padding:26px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
@@ -261,19 +268,24 @@ function pGame(){
 // ---- Finish ----
 async function pDone(){
   const st=pGameState;let board=[];try{board=await rpc("leaderboard",{p_pin:localStorage.getItem("q_pin")});}catch{}
-  const myRank=(board.findIndex(r=>r.name===st.team.name)+1)||"—";
+  const fin=!!st.finished;
+  const myRank=fin?((board.findIndex(r=>r.name===st.team.name)+1)||"—"):"—";
+  const kicker=fin?"Quest complete":"Game over";
+  const headline=fin?"All challenges solved.":"The host ended the game.";
+  const sub=fin?("Well played, "+esc(st.team.name)+"."):"Here are the final standings.";
+  const doneTime=fin?fmt(st.total_seconds||0):"—";
   const rows=board.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--th-line);${r.name===st.team.name?'background:var(--th-field);':''}">
     <span style="width:22px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;color:var(--th-primary);">${i+1}</span>
     <span style="flex:1;font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(r.name)}</span>
     <span style="font-size:11.5px;color:var(--th-muted);white-space:nowrap;">${st.total_questions} solved</span>
     <span style="font-size:12.5px;font-weight:600;color:var(--th-ink);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt(r.total_seconds)}</span></div>`).join("");
   $("pscreen").innerHTML=`<div style="padding:36px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .3s ease;">
-    <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">Quest complete</div>
-      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">All challenges solved.</div>
-      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">Well played, ${esc(st.team.name)}.</div></div>
+    <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">${kicker}</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">${headline}</div>
+      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">${sub}</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Final rank</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;">${myRank}</div></div>
-      <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div></div>
+      <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${doneTime}</div></div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;margin-bottom:8px;">Final standings</div><div style="display:flex;flex-direction:column;">${rows||'<div style="font-size:12.5px;color:var(--th-muted);padding:8px 0;">No finishers yet.</div>'}</div></div>
     <button onclick="resetView()" style="border:1px solid var(--th-line);cursor:pointer;padding:13px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:transparent;color:var(--th-ink);">Back to start</button></div>`;
 }
@@ -281,7 +293,7 @@ async function pDone(){
 // elapsed ticker
 setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished||!pGameState.activated_at)return;
   const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(pGameState.activated_at))/1000);
-  if(pGameState.hints&&pGameState.hints.some(h=>!h.unlocked))pGame.needsTick;},1000);
+  let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due)pRefresh();},1000);
 setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();}},10000);
 
 // ===================== ADMIN =====================
@@ -314,7 +326,7 @@ function sideMenu(){
       <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Selected</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${selGame?esc(selGame.name):"—"}</div></div></div>
   </aside>`;
 }
-function adminGo(v){adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
+function adminGo(v){if(v!=="monitor"&&monTimer){clearInterval(monTimer);monTimer=null;}adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
 function drawAdmin(){
   let main="";
   if(adminView==="games")main=viewGames();
@@ -332,7 +344,7 @@ function viewGames(){
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">${esc(g.name)}</span>
       <span style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${d[0]};white-space:nowrap;">● ${d[1]}</span></div>
       <span style="font-size:12.5px;color:#71717a;min-height:32px;line-height:1.45;">${esc(g.description||"")}</span>
-      <span style="font-size:11px;color:#a1a1aa;">PIN ${g.pin} · ${g.question_count} questions · ${g.team_count} teams</span></button>`;}).join("");
+      <span style="font-size:11px;color:#a1a1aa;">PIN ${g.pin} · ${g.question_count} questions · ${g.team_count} teams${g.theme_name?" · "+esc(g.theme_name):""}</span></button>`;}).join("");
   return `<section style="display:flex;flex-direction:column;gap:18px;">
     <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
@@ -351,7 +363,7 @@ function selectedDetail(){
     actions.push(`<button onclick="setStatus('${g.id}','ended')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">End</button>`);}
   if(g.status==="ended")actions.push(`<button onclick="newRun('${g.id}')" style="border:0;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">New run</button>`);
   actions.push(`<button onclick="editWiz('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Edit in wizard</button>`);
-  actions.push(`<button onclick="delGame('${g.id}','${esc(g.name).replace(/'/g,"")}')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">Delete</button>`);
+  actions.push(`<button onclick="delGame('${g.id}')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">Delete</button>`);
   const q=g.questions.map((x,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
     <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(x.title)}</strong>
     <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(x.answer||"")}</strong></span></div>
@@ -369,7 +381,7 @@ function selectedDetail(){
 async function setStatus(id,s){await a("admin_set_status",{p_game:id,p_status:s});toast("Status: "+s);adminData=await a("admin_list");selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
 async function adminExtend(id){await a("admin_extend",{p_game:id,p_minutes:15});toast("Extended 15 min");}
 async function newRun(id){if(!confirm("New run wipes teams. Continue?"))return;await a("admin_new_run",{p_game:id});toast("New run started");setStatus(id,"live");}
-async function delGame(id,n){if(!confirm('Delete "'+n+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
+async function delGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};if(!confirm('Delete "'+(g.name||"this game")+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
 
 // ---- Wizard ----
 function blankQ(){return{title:"",answer:"",intro:"",blocks:[],hints:[]};}
@@ -433,8 +445,8 @@ function wqEditor(q){
     <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label><input value="${esc(q.intro)}" oninput="wiz.questions[wiz.sel].intro=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
     <div style="display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Content blocks — text, image, video, audio, link</label>${blocks}
       <div style="display:flex;gap:8px;flex-wrap:wrap;"><select onchange="wiz.wbType=this.value" style="padding:9px 10px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;background:#fff;">
-        <option value="text">Text</option><option value="image">Image URL</option><option value="video">Video URL</option><option value="audio">Audio URL</option><option value="url">Link</option></select>
-        <input id="wbc" oninput="wiz.wbContent=this.value" placeholder="Content or URL" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;">
+        ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["url","Link"]].map(o=>`<option value="${o[0]}" ${wiz.wbType===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
+        <input value="${esc(wiz.wbContent)}" oninput="wiz.wbContent=this.value" placeholder="Content or URL" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;">
         <button onclick="addWBlock()" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Add block</button></div></div>
     <div style="border-top:1px solid #ececee;padding-top:12px;display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Hints — unlock over time</label>${hints}
       <button onclick="addWHint()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;align-self:flex-start;">Add hint</button></div></div>`;
@@ -466,7 +478,7 @@ function wizStep4(){
     <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(q.answer||"")}</strong></span></div>
     <div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(q.intro||"")}</div></div>`).join("");
   return `<div style="display:flex;flex-direction:column;gap:12px;">
-    <div style="border-radius:13px;padding:22px;background:${tk.primary||"#18181b"};color:#fff;">
+    <div style="border-radius:13px;padding:22px;background:linear-gradient(135deg,${tk.primary||"#18181b"},${tk.secondary||tk.primary||"#18181b"});color:#fff;">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;opacity:.8;">${esc(th?.name||"")} theme</div>
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:23px;margin-top:4px;">${esc(wiz.name||"Untitled")}</div>
       <div style="font-size:13px;opacity:.9;margin-top:4px;">${esc(wiz.description||"")}</div>
@@ -536,7 +548,8 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Watching "${esc(live.name||"")}" — PIN ${live.pin||""}</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="adminExtend('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">+15 min</button>
-      <button onclick="newRun('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">New run</button></div></div>
+      <button onclick="newRun('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">New run</button>
+      <button onclick="endGameMon('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">End game</button></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px;">${stats.map(s=>`<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${s[0]}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${s[1]}</div></div>`).join("")}</div></div>`;
   const tv=$("monTeams");if(tv)tv.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h2 style="margin:0 0 14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#18181b;">Team progress</h2><div style="display:flex;flex-direction:column;gap:9px;">
@@ -552,6 +565,7 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
     :'<div style="border:1px dashed #e4e4e7;border-radius:12px;padding:24px;text-align:center;color:#a1a1aa;font-size:13px;">No teams yet. Join from the Player view.</div>'}</div></div>`;
 }
 async function resetTeam(id){if(!confirm("Reset this team to the start?"))return;await a("admin_reset_team",{p_team:id});toast("Reset");}
+async function endGameMon(id){if(!confirm("End this game for all players?"))return;await a("admin_set_status",{p_game:id,p_status:"ended"});toast("Game ended");if(monTimer){clearInterval(monTimer);monTimer=null;}adminData=await a("admin_list");drawAdmin();}
 
 // boot
 setRole("player");
