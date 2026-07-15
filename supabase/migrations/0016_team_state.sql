@@ -1,0 +1,2 @@
+-- 0016_team_state.sql — admin_team_state(code,team): returns the exact player _state_json
+-- for a team so the admin can spectate. Applied via MCP 2026-07-16.

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-store, max-age=0" />
 <title>Questline — live riddle platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -56,6 +57,17 @@
 <div id="admin" class="hidden"></div>
 
 <div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;background:#18181b;color:#fafafa;padding:11px 22px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 16px 40px -12px rgba(24,24,27,.45);border:1px solid #3f3f46;opacity:0;transition:opacity .2s;pointer-events:none;"></div>
+
+<!-- Spectator (see what a team sees) -->
+<div id="spectator" class="hidden" style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:36px 16px;overflow:auto;" onclick="if(event.target===this)closeSpectate()">
+  <div style="width:min(440px,100%);background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.35);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 15px;background:#111113;color:#fff;">
+      <span id="specTitle" style="font-weight:600;font-size:13.5px;">Spectating</span>
+      <span style="display:flex;gap:8px;"><button onclick="if(specTeam)spectate(specTeam)" title="Refresh" style="border:0;background:transparent;color:#a1a1aa;cursor:pointer;font-size:14px;">↻</button>
+      <button onclick="closeSpectate()" style="border:0;background:transparent;color:#a1a1aa;cursor:pointer;font-size:18px;line-height:1;">✕</button></span></div>
+    <div id="specBody"></div>
+  </div>
+</div>
 
 <script>
 const SB_URL="https://shgbvoxbwmhhridiihxn.supabase.co";
@@ -474,7 +486,8 @@ function controlsPanel(g){
   const paused=!!g.paused_at;
   const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
-    <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></div>
+    <span style="display:flex;gap:5px;"><button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">View</button>
+    <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></span></div>
     <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
     <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>`;
@@ -753,12 +766,47 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
         <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
           <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':'#6366f1'};">● ${fin?'Finished':'Playing'}</span>
+          <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
       <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div></div>`;}).join("")
     :'<div style="border:1px dashed #e4e4e7;border-radius:12px;padding:24px;text-align:center;color:#a1a1aa;font-size:13px;">No teams yet. Join from the Player view.</div>'}</div></div>`;
 }
 async function resetTeam(id){if(!confirm("Reset this team to the start?"))return;await a("admin_reset_team",{p_team:id});toast("Reset");}
 async function endGameMon(id){if(!confirm("End this game for all players?"))return;await a("admin_set_status",{p_game:id,p_status:"ended"});toast("Game ended");if(monTimer){clearInterval(monTimer);monTimer=null;}adminData=await a("admin_list");drawAdmin();}
+
+// ---- spectate a team (admin: see what the team sees) ----
+let specTeam=null;
+async function spectate(teamId){
+  specTeam=teamId;
+  const st=await a("admin_team_state",{p_team:teamId});
+  if(st.error){toast("Cannot load team view");return;}
+  const t=st.theme||{};
+  const vars=`--th-primary:${t.primary||'#4f46e5'};--th-onPrimary:${t.onPrimary||'#fff'};--th-bg:${t.bg||'#fff'};--th-ink:${t.ink||'#18181b'};--th-inkSoft:${t.inkSoft||'#52525b'};--th-muted:${t.muted||'#a1a1aa'};--th-card:${t.card||'#fff'};--th-field:${t.field||'#f4f4f5'};--th-line:${t.line||'#e4e4e7'};--th-fontDisplay:${t.fontDisplay||"'Space Grotesk',sans-serif"};--th-fontBody:${t.fontBody||'-apple-system,sans-serif'};--th-rCard:${t.rCard||'12px'};--th-rInput:${t.rInput||'10px'};`;
+  let inner;
+  if(st.finished){inner=`<div style="text-align:center;padding:36px 22px;"><div style="font-size:34px;">🏁</div><div style="font-family:var(--th-fontDisplay);font-size:22px;margin-top:8px;">Finished</div><div style="color:var(--th-muted);margin-top:6px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div>`;}
+  else if(st.paused){inner=`<div style="text-align:center;padding:40px 22px;"><div style="font-size:34px;">⏸</div><div style="font-family:var(--th-fontDisplay);font-size:22px;margin-top:8px;">Paused</div><div style="color:var(--th-inkSoft);margin-top:6px;">${esc(st.pause_message||"")}</div></div>`;}
+  else if(!st.started){inner=`<div style="text-align:center;padding:44px 22px;"><div style="font-family:var(--th-fontDisplay);font-size:22px;">Waiting for start…</div></div>`;}
+  else{const q=st.question;
+    const blocks=(q.blocks||[]).map(pBlock).join("");
+    const info=q.info?`<div style="background:color-mix(in srgb,var(--th-primary) 9%,var(--th-card));border:1px solid var(--th-line);border-left:3px solid var(--th-primary);border-radius:var(--th-rInput);padding:11px 13px;font-size:13px;color:var(--th-ink);"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--th-primary);display:block;margin-bottom:3px;">ⓘ Important</span>${esc(q.info)}</div>`:"";
+    const hints=(st.hints||[]).slice().sort((a,b)=>a.ord-b.ord).map(h=>{
+      if(h.unlocked){const hb=(h.blocks&&h.blocks.length)?h.blocks.map(pBlock).join(""):(h.text?`<div style="font-size:13px;color:var(--th-ink);">${esc(h.text)}</div>`:"");
+        return `<div style="border-top:1px solid var(--th-line);padding:9px 0;"><div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--th-ink);">Hint ${String(h.ord).padStart(2,"0")} · unlocked</div><div style="margin-top:6px;display:flex;flex-direction:column;gap:7px;">${hb}</div></div>`;}
+      return `<div style="border-top:1px solid var(--th-line);padding:9px 0;opacity:.7;"><div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--th-muted);">Hint ${String(h.ord).padStart(2,"0")} · locked · after ${h.reveal_after_min}m</div></div>`;
+    }).join("");
+    inner=`<div style="padding:20px;display:flex;flex-direction:column;gap:11px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--th-muted);">${esc(st.team.name)} · Challenge ${q.ord} of ${st.total_questions}</div>
+      <div style="font-family:var(--th-fontDisplay);font-size:21px;line-height:1.2;">${esc(q.title)}</div>
+      ${q.intro?`<div style="font-size:12.5px;color:var(--th-inkSoft);font-style:italic;">${esc(q.intro)}</div>`:""}
+      ${blocks?`<div style="display:flex;flex-direction:column;gap:9px;">${blocks}</div>`:""}
+      ${info}
+      <div style="border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:13px;"><div style="font-family:var(--th-fontDisplay);font-size:14px;margin-bottom:4px;">Hints</div>${hints||'<div style="color:var(--th-muted);font-size:12px;">No hints.</div>'}</div></div>`;
+  }
+  document.getElementById("specBody").innerHTML=`<div style="${vars}font-family:var(--th-fontBody);background:var(--th-bg);color:var(--th-ink);">${inner}</div>`;
+  document.getElementById("specTitle").textContent="Team view — "+(st.team?.name||"");
+  document.getElementById("spectator").classList.remove("hidden");
+}
+function closeSpectate(){document.getElementById("spectator").classList.add("hidden");specTeam=null;}
 
 // boot
 setRole("player");
