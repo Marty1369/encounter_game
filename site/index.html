@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#f2f2f0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18181b;min-height:100vh}
@@ -141,11 +142,30 @@ function renderPlayer(){
   if(pToken()&&pGameState){
     if(pGameState.finished||pGameState.expired)return pDone();
     if(pGameState.started===false)return pCountdown();
+    if(pGameState.paused)return pPaused();
     if(s.screen==="lobby")return pLobby();
     return pGame();
   }
   if(s.screen==="teams")return pTeams();
   return pJoinScreen();
+}
+// ---- Paused ----
+function pPaused(){
+  const st=pGameState;
+  $("pscreen").innerHTML=`<div style="padding:44px 24px;text-align:center;display:flex;flex-direction:column;gap:14px;min-height:640px;justify-content:center;animation:fadeup .25s ease;">
+    <div style="font-size:40px;">⏸</div>
+    <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:26px;letter-spacing:var(--th-displayTracking);">Game paused</div>
+    <div style="font-size:15px;color:var(--th-inkSoft);line-height:1.6;">${esc(st.pause_message||"The host paused the game. Please wait.")}</div>
+    <div style="font-size:12px;color:var(--th-muted);">Your timer is frozen — you won't lose any time.</div></div>`;
+}
+// ---- notices (toast admin messages, e.g. discarded task) ----
+const shownNotices=new Set(JSON.parse(localStorage.getItem("q_notices")||"[]"));
+async function pNotices(){
+  const t=pToken();if(!t)return;
+  try{const ns=await rpc("get_notices",{p_session:t});if(!Array.isArray(ns))return;
+    const fresh=ns.filter(n=>!shownNotices.has(n.id));
+    if(fresh.length){fresh.forEach(n=>shownNotices.add(n.id));localStorage.setItem("q_notices",JSON.stringify([...shownNotices]));toast(fresh[0].message);}
+  }catch{}
 }
 // ---- Countdown to start ----
 function pCountdown(){
@@ -230,6 +250,15 @@ function pTeams(){
     <div style="display:flex;gap:8px;"><input id="newteam" value="${esc(pState.team)}" oninput="pState.team=this.value" placeholder="New team name" style="flex:1;min-width:0;padding:13px 15px;font-size:14.5px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
       <button onclick="pJoin()" style="border:0;cursor:pointer;padding:0 20px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:var(--th-primary);color:var(--th-onPrimary);min-height:48px;">Create</button></div></div>`;
 }
+// one themed content block (text/image/video/audio/link) — for hints (and reusable)
+function pBlock(b){
+  if(b.type==="text")return `<div style="font-size:14px;line-height:1.55;color:var(--th-ink);">${esc(b.text!=null?b.text:(b.content||""))}</div>`;
+  const url=b.url!=null?b.url:(b.content||"");
+  if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(url))}');"></div>`;
+  const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open link";
+  const gl={video:"▶",audio:"♪"}[b.type]||"↗";
+  return `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:28px;height:28px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">${gl}</span><span style="font-weight:600;font-size:12.5px;">${lbl}</span></a>`;
+}
 // ---- Game ----
 function pGame(){
   const st=pGameState,q=st.question;
@@ -248,9 +277,9 @@ function pGame(){
     const open=h.unlocked;const title="Hint "+String(h.ord).padStart(2,"0");
     let badge,badgeColor,body="";
     if(open){badge="unlocked";badgeColor="#15803d";
-      body=`<div style="font-size:14px;color:var(--th-ink);margin-top:7px;line-height:1.55;">${esc(h.text||"")}</div>`+
-        (h.media_type==="image"&&h.media_url?`<div role="img" style="margin-top:8px;width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(safeUrl(h.media_url))}');"></div>`:"")+
-        (h.media_url&&h.media_type&&h.media_type!=="image"?`<a href="${esc(safeUrl(h.media_url))}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:9px 14px;border:1px solid var(--th-line);border-radius:var(--th-rBtn);background:var(--th-field);text-decoration:none;color:var(--th-ink);font-weight:600;font-size:12.5px;">Open clue</a>`:"");
+      const hb=(h.blocks&&h.blocks.length)?h.blocks.map(pBlock).join("")
+        :((h.text?`<div style="font-size:14px;color:var(--th-ink);line-height:1.55;">${esc(h.text)}</div>`:"")+(h.media_type&&h.media_url?pBlock({type:h.media_type,url:h.media_url}):""));
+      body=`<div style="margin-top:7px;display:flex;flex-direction:column;gap:8px;">${hb}</div>`;
     }else{const rem=(Date.parse(st.activated_at)+h.reveal_after_min*60000-serverNow())/1000;badge="unlocks in "+fmt(rem>0?rem:0);badgeColor="var(--th-muted)";if(rem<=0)setTimeout(pRefresh,400);}
     return `<div style="border-top:1px solid var(--th-line);padding:11px 2px 4px;"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">
       <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${open?"var(--th-ink)":"var(--th-muted)"};">${title}</span>
@@ -314,7 +343,7 @@ setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished)return;
   if(!pGameState.activated_at)return;
   const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(pGameState.activated_at))/1000);
   let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due)pRefresh();},1000);
-setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();}},10000);
+setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();pNotices();}},10000);
 
 // ===================== ADMIN =====================
 let adminData=null,adminView="games",selGame=null,wiz=null,wizStep=1;
@@ -400,17 +429,20 @@ async function showHintFor(teamId){
   await a("admin_show_hint",{p_team:teamId,p_hint:next.id});toast("Revealed hint "+next.ord+" to the team");
   if(adminView==="monitor")startMon();
 }
-async function discardTask(gameId,ord,title){if(!confirm('Discard task "'+title+'"? Teams on it move on; time is credited back to teams that solved it.'))return;
-  await a("admin_discard_task",{p_game:gameId,p_ord:ord});toast("Task discarded");selectGame(gameId);}
+async function discardTask(gameId,ord,title){
+  const reason=prompt('Discard "'+title+'"? Teams on it move on; time is credited back to teams that already solved it.\n\nCause (shown to all players):',"");
+  if(reason===null)return;
+  await a("admin_discard_task",{p_game:gameId,p_ord:ord,p_reason:reason});toast("Task discarded — players notified");selectGame(gameId);}
 function selectedDetail(){
   const g=selGame,d=dot[g.status]||dot.draft;
-  const actions=[];
-  if(g.status!=="live")actions.push(`<button onclick="setStatus('${g.id}','live')" style="border:0;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">Take live</button>`);
-  if(g.status==="live"){actions.push(`<button onclick="adminExtend('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">+15 min</button>`);
-    actions.push(`<button onclick="setStatus('${g.id}','ended')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">End</button>`);}
-  if(g.status==="ended")actions.push(`<button onclick="newRun('${g.id}')" style="border:0;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">New run</button>`);
-  actions.push(`<button onclick="editWiz('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Edit in wizard</button>`);
-  actions.push(`<button onclick="delGame('${g.id}')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">Delete</button>`);
+  const btn=(label,onclick,danger)=>`<button onclick="${onclick}" style="border:1px solid ${danger?"#fecaca":"#e4e4e7"};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${danger?"#dc2626":"#18181b"};">${label}</button>`;
+  const actions=[
+    btn("Edit in wizard",`editWiz('${g.id}')`),
+    btn("Rename",`renameGame('${g.id}')`),
+    btn("Duplicate",`duplicateGame('${g.id}')`),
+    btn("Leaderboard",`showLeaderboard('${g.id}')`),
+    btn("Delete",`delGame('${g.id}')`,true),
+  ];
   const q=g.questions.map((x,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
     <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(x.title)}</strong>
     <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(x.answer||"")}</strong></span></div>
@@ -435,34 +467,52 @@ function qList(g){return g.questions.map((x,i)=>`<div style="border:1px solid #f
     ${x.info?`<div style="font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:6px 9px;margin-top:6px;">ⓘ ${esc(x.info)}</div>`:""}
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${(x.blocks||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.blocks.length} blocks</span>`:""}${(x.hints||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.hints.length} hints</span>`:""}</div></div>`).join("");
 }
+const lbl=t=>`<label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${t}</label>`;
 function controlsPanel(g){
-  const r=selRoster||{}; const canRun=(g.status==="live"||g.status==="ready");
+  const r=selRoster||{};
+  const ended=g.status==="ended", activated=g.status==="live";
   const started=g.starts_at&&new Date(g.starts_at).getTime()<=Date.now()+15000; // 15s skew buffer
+  const paused=!!g.paused_at;
   const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
     <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></div>
     <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
+  const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
+    <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>`;
+  let life="";
+  if(ended){ life=`<div style="font-size:13px;color:#71717a;font-weight:600;">This game has ended. Duplicate it to run again.</div>`; }
+  else if(!activated){ life=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Not activated")}
+    <button onclick="activateGame('${g.id}')" style="border:0;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Confirm &amp; Activate — open registration</button></div>`; }
+  else if(!started){ life=`<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:5px;">${lbl("Scheduled start · auto-starts, or start early")}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="datetime-local" id="schedInput" value="${localDT(g.starts_at)}" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;color:#18181b;">
+      <button onclick="setSchedule('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Set</button>
+      <button onclick="startNow('${g.id}')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Start game</button></div></div>${reg}</div>`; }
+  else { life=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:5px;">${lbl("Game "+(paused?"paused":"running"))}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${paused?`<button onclick="resumeGame('${g.id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#15803d;color:#fff;">Resume</button>`
+                :`<button onclick="pauseGame('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Pause…</button>`}
+        <button onclick="stopGame('${g.id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#b91c1c;color:#fff;">End game</button></div></div>${reg}</div>`; }
   return `<div style="border-top:1px solid #f0f0f1;padding-top:16px;display:flex;flex-direction:column;gap:14px;">
-    ${canRun?`<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;">
-      ${started
-        ?`<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Game running</label>
-          <button onclick="stopGame('${g.id}')" style="border:0;cursor:pointer;padding:9px 18px;border-radius:9px;font-weight:600;font-size:12.5px;background:#b91c1c;color:#fff;">End game</button></div>`
-        :`<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Scheduled start · auto-starts, or start early</label>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="datetime-local" id="schedInput" value="${localDT(g.starts_at)}" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;color:#18181b;">
-          <button onclick="setSchedule('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Set</button>
-          <button onclick="startNow('${g.id}')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Start now</button></div></div>`}
-      <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Registration</label>
-        <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>
-    </div>`:""}
+    ${life}
+    <div id="lbPanel"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
-      ${statCard("Status", dot[g.status][1])}${statCard("Teams", r.team_count??0)}${statCard("Players", r.player_count??0)}${statCard("Starts", g.starts_at?new Date(g.starts_at).toLocaleString():"—")}</div>
+      ${statCard("Status", dot[g.status][1]+(paused?" · paused":""))}${statCard("Teams", r.team_count??0)}${statCard("Players", r.player_count??0)}${statCard("Starts", g.starts_at?new Date(g.starts_at).toLocaleString():"—")}</div>
     ${(r.teams||[]).length?`<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
   </div>`;
 }
-async function setStatus(id,s){await a("admin_set_status",{p_game:id,p_status:s});toast("Status: "+s);adminData=await a("admin_list");selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
-async function adminExtend(id){await a("admin_extend",{p_game:id,p_minutes:15});toast("Extended 15 min");}
-async function newRun(id){if(!confirm("New run wipes teams. Continue?"))return;await a("admin_new_run",{p_game:id});toast("New run started");setStatus(id,"live");}
+async function activateGame(id){await a("admin_activate",{p_game:id});toast("Registration open");adminData=await a("admin_list");selectGame(id);}
+async function pauseGame(id){const m=prompt("Message players see while paused:","We've paused briefly — hang tight!");if(m===null)return;await a("admin_pause",{p_game:id,p_message:m});toast("Game paused");adminData=await a("admin_list");selectGame(id);}
+async function resumeGame(id){await a("admin_resume",{p_game:id});toast("Game resumed");adminData=await a("admin_list");selectGame(id);}
+async function renameGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};const n=prompt("New game name:",g.name||"");if(n===null||!n.trim())return;await a("admin_rename",{p_game:id,p_name:n.trim()});toast("Renamed");adminData=await a("admin_list");selectGame(id);}
+async function duplicateGame(id){const res=await a("admin_duplicate",{p_game:id});if(res.error){toast("Error");return;}toast("Duplicated → draft");adminData=await a("admin_list");selectGame(res.id);}
+async function showLeaderboard(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};let lb=[];try{lb=await rpc("leaderboard",{p_pin:g.pin});}catch{}
+  const el=$("lbPanel");if(!el)return;
+  el.innerHTML=`<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;"><div style="font-weight:600;font-size:13px;color:#18181b;margin-bottom:8px;">Leaderboard — finished teams</div>
+    ${lb.length?`<table style="width:100%;border-collapse:collapse;">${lb.map((r,i)=>`<tr><td style="padding:5px 4px;border-bottom:1px solid #f0f0f1;font-size:13px;">${i+1}. ${esc(r.name)}</td><td style="padding:5px 4px;border-bottom:1px solid #f0f0f1;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;">${fmt(r.total_seconds)}</td></tr>`).join("")}</table>`:'<div style="font-size:12.5px;color:#a1a1aa;">No finishers yet.</div>'}</div>`;
+}
 async function delGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};if(!confirm('Delete "'+(g.name||"this game")+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
 
 // ---- Wizard ----
@@ -470,7 +520,8 @@ function blankQ(){return{title:"",answer:"",intro:"",info:"",case_sensitive:fals
 function moveWHint(i,d){const n=i+d,hs=wiz.questions[wiz.sel].hints;if(n<0||n>=hs.length)return;[hs[i],hs[n]]=[hs[n],hs[i]];drawAdmin();}
 function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
 async function editWiz(id){const g=await a("admin_get_game",{p_game:id});wiz={id:g.id,name:g.name||"",description:g.description||"",duration_min:g.duration_min,max_teams:g.max_teams,theme_id:g.theme_id||adminData.themes[0]?.id||"",
-  questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",info:q.info||"",case_sensitive:!!q.case_sensitive,blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),hints:(q.hints||[]).map(h=>({reveal_after_min:h.reveal_after_min,text:h.text||"",media_type:h.media_type||"",media_url:h.media_url||""}))})),sel:0,wbType:"text",wbContent:""};
+  questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",info:q.info||"",case_sensitive:!!q.case_sensitive,blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),
+    hints:(q.hints||[]).map(h=>{let bl=(h.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""}));if(!bl.length){if(h.text)bl.push({type:"text",content:h.text});if(h.media_type&&h.media_url)bl.push({type:h.media_type,content:h.media_url});}return {reveal_after_min:h.reveal_after_min,blocks:bl,_bt:"text",_bc:""};})})),sel:0,wbType:"text",wbContent:""};
   wizStep=2;adminGo("wizard");}
 const setW=(f,v)=>{wiz[f]=v;};
 function viewWizard(){
@@ -485,8 +536,8 @@ function viewWizard(){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">${wiz.id?"Edit game":"Create a game"}</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Basics → Questions &amp; hints → Theme → Review.</p></div>
-      <div style="display:flex;gap:7px;flex-wrap:wrap;"><button onclick="downloadTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">CSV template</button>
-      <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import CSV<input type="file" accept=".csv" onchange="importCsv(event)" style="display:none;"></label></div></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;"><button onclick="downloadXlsxTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">XLSX template</button>
+      <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import XLSX<input type="file" accept=".xlsx,.xls" onchange="importXlsx(event)" style="display:none;"></label></div></div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;">${stepBtns}</div>${body}
     <div style="display:flex;justify-content:space-between;border-top:1px solid #f0f0f1;padding-top:14px;">
       <button onclick="wizStep=Math.max(1,wizStep-1);drawAdmin()" style="border:1px solid #e4e4e7;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Back</button>
@@ -497,8 +548,8 @@ function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:1
   <input value="${esc(wiz.name)}" oninput="setW('name',this.value)" placeholder="e.g. Harbor Heist" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:15px;color:#18181b;"></div>
   <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Description / story intro</label>
   <textarea oninput="setW('description',this.value)" placeholder="A short story to set the mood…" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;min-height:84px;resize:vertical;color:#18181b;">${esc(wiz.description)}</textarea></div>
-  <div style="display:flex;gap:10px;"><div style="flex:1;display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Duration (min)</label><input type="number" value="${wiz.duration_min}" oninput="setW('duration_min',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div>
-  <div style="flex:1;display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Max teams</label><input type="number" value="${wiz.max_teams}" oninput="setW('max_teams',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div></div></div>`;}
+  <div style="display:flex;flex-direction:column;gap:5px;max-width:200px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Max teams</label><input type="number" value="${wiz.max_teams}" oninput="setW('max_teams',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div>
+  <p style="font-size:11.5px;color:#a1a1aa;margin:0;">No fixed duration — the game runs until you stop it (or all teams finish).</p></div>`;}
 function wizStep2(){
   const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
     <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
@@ -510,15 +561,20 @@ function wizStep2(){
   return `<div style="display:grid;grid-template-columns:minmax(210px,300px) 1fr;gap:18px;align-items:start;">
     <div style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
     <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
-    ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import a CSV.</div>'}</div>${editor}</div>`;
+    ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div>${editor}</div>`;
 }
 function wqEditor(q){
   const blocks=q.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
     <span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
     <span style="flex:1;font-size:12.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
     <button onclick="delWBlock(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
-  const hints=q.hints.map((h,i)=>{const mt=h.media_type||"";
-    return `<div style="border:1px solid #e9e9eb;border-radius:9px;padding:9px 11px;background:#fff;display:flex;flex-direction:column;gap:6px;">
+  const hints=q.hints.map((h,i)=>{
+    const bl=(h.blocks||[]).map((b,bi)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:8px;padding:6px 9px;background:#fff;">
+      <span style="font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
+      <span style="flex:1;font-size:12px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
+      <button onclick="moveHBlock(${i},${bi},-1)" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:11px;">↑</button>
+      <button onclick="delHBlock(${i},${bi})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;">✕</button></div>`).join("");
+    return `<div style="border:1px solid #e9e9eb;border-radius:9px;padding:9px 11px;background:#fff;display:flex;flex-direction:column;gap:7px;">
     <div style="display:flex;align-items:center;gap:7px;">
       <strong style="font-size:11.5px;color:#18181b;">Hint ${i+1}</strong>
       <span style="font-size:10px;color:#a1a1aa;text-transform:uppercase;letter-spacing:.07em;">reveal after</span>
@@ -527,11 +583,12 @@ function wqEditor(q){
         <button onclick="moveWHint(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↑</button>
         <button onclick="moveWHint(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↓</button>
         <button onclick="delWHint(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;padding:2px 4px;">✕</button></span></div>
-    <input value="${esc(h.text)}" oninput="wiz.questions[wiz.sel].hints[${i}].text=this.value" placeholder="Hint text" style="padding:6px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;">
-    <div style="display:flex;gap:6px;">
-      <select onchange="wiz.questions[wiz.sel].hints[${i}].media_type=(this.value==='text'?'':this.value);drawAdmin()" style="width:120px;padding:6px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;background:#fff;">
-        ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["link","Link"]].map(o=>`<option value="${o[0]}" ${(mt||"text")===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
-      ${mt?`<input value="${esc(h.media_url||"")}" oninput="wiz.questions[wiz.sel].hints[${i}].media_url=this.value" placeholder="Content / URL" style="flex:1;min-width:0;padding:6px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;">`:`<span style="flex:1;font-size:11px;color:#a1a1aa;align-self:center;">Text-only hint</span>`}</div></div>`;}).join("");
+    ${bl||'<div style="font-size:11px;color:#a1a1aa;">No blocks yet — add text and/or media below.</div>'}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <select onchange="wiz.questions[wiz.sel].hints[${i}]._bt=this.value" style="width:112px;padding:6px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;background:#fff;">
+        ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["link","Link"]].map(o=>`<option value="${o[0]}" ${(h._bt||"text")===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
+      <input value="${esc(h._bc||"")}" oninput="wiz.questions[wiz.sel].hints[${i}]._bc=this.value" placeholder="Text or URL" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;">
+      <button onclick="addHBlock(${i})" style="border:1px solid #e4e4e7;cursor:pointer;padding:6px 12px;border-radius:7px;font-weight:600;font-size:11.5px;background:#fff;color:#18181b;">Add block</button></div></div>`;}).join("");
   return `<div style="display:flex;flex-direction:column;gap:12px;border:1px solid #f0f0f1;border-radius:12px;padding:18px;background:#fafafa;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
@@ -555,8 +612,11 @@ function delWQ(i){wiz.questions.splice(i,1);wiz.sel=Math.max(0,wiz.sel-(i<=wiz.s
 function moveQ(i,d){const n=i+d;if(n<0||n>=wiz.questions.length)return;const x=wiz.questions;[x[i],x[n]]=[x[n],x[i]];drawAdmin();}
 function addWBlock(){if(!wiz.wbContent.trim())return;wiz.questions[wiz.sel].blocks.push({type:wiz.wbType,content:wiz.wbContent.trim()});wiz.wbContent="";drawAdmin();}
 function delWBlock(i){wiz.questions[wiz.sel].blocks.splice(i,1);drawAdmin();}
-function addWHint(){wiz.questions[wiz.sel].hints.push({reveal_after_min:0,text:"",media_type:"",media_url:""});drawAdmin();}
+function addWHint(){wiz.questions[wiz.sel].hints.push({reveal_after_min:0,blocks:[],_bt:"text",_bc:""});drawAdmin();}
 function delWHint(i){wiz.questions[wiz.sel].hints.splice(i,1);drawAdmin();}
+function addHBlock(hi){const h=wiz.questions[wiz.sel].hints[hi];if(!(h._bc||"").trim())return;h.blocks=h.blocks||[];h.blocks.push({type:h._bt||"text",content:h._bc.trim()});h._bc="";drawAdmin();}
+function delHBlock(hi,bi){wiz.questions[wiz.sel].hints[hi].blocks.splice(bi,1);drawAdmin();}
+function moveHBlock(hi,bi,d){const bs=wiz.questions[wiz.sel].hints[hi].blocks;const n=bi+d;if(n<0||n>=bs.length)return;[bs[bi],bs[n]]=[bs[n],bs[bi]];drawAdmin();}
 function wizStep3(){
   const cards=adminData.themes.map(t=>{const tk=t.tokens,on=wiz.theme_id===t.id;
     return `<button onclick="wiz.theme_id='${t.id}';drawAdmin()" style="border:1.5px solid ${on?"#18181b":"#e4e4e7"};cursor:pointer;border-radius:13px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:8px;text-align:left;">
@@ -585,27 +645,61 @@ function wizStep4(){
     <div style="display:flex;gap:9px;flex-wrap:wrap;">
       <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Save as draft</button>
       <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#18181b;">Save as ready</button>
-      <button onclick="saveWiz('live')" style="border:0;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Save &amp; go live</button></div></div>`;
+      <button onclick="saveWiz('live')" style="border:0;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Save &amp; activate</button></div></div>`;
 }
 async function saveWiz(status){
   const payload={id:wiz.id||"",name:wiz.name,description:wiz.description,duration_min:wiz.duration_min,max_teams:wiz.max_teams,theme_id:wiz.theme_id,
     questions:wiz.questions.map(q=>({title:q.title,intro:q.intro,info:q.info||"",case_sensitive:!!q.case_sensitive,answer:q.answer,alt_answers:[],
       blocks:q.blocks.map(b=>b.type==="text"?{type:"text",text:b.content}:{type:b.type==="url"?"link":b.type,url:b.content}),
-      hints:q.hints.map(h=>({reveal_after_min:h.reveal_after_min,text:h.text,media_type:h.media_type||"",media_url:h.media_url||""}))}))};
+      hints:q.hints.map(h=>({reveal_after_min:h.reveal_after_min,
+        blocks:(h.blocks||[]).map(b=>b.type==="text"?{type:"text",text:b.content}:{type:(b.type==="url"||b.type==="link")?"link":b.type,url:b.content})}))}))};
   const res=await a("admin_save_game",{p_payload:payload});
   if(res.error){toast("Error: "+res.error);return;}
-  if(status!=="draft")await a("admin_set_status",{p_game:res.id,p_status:status});
+  if(status==="ready")await a("admin_set_status",{p_game:res.id,p_status:"ready"});
+  else if(status==="live")await a("admin_activate",{p_game:res.id});
   toast("Saved · PIN "+res.pin);selGame=null;adminData=await a("admin_list");adminGo("games");
 }
-function downloadTemplate(){const csv="title,intro,answer,block_text,hints\nHarbor clue,A short intro,ANCHOR,Look near the docks.,0:Check the pier;5:It's blue\n";
-  const b=new Blob([csv],{type:"text/csv"});const u=URL.createObjectURL(b);const a2=document.createElement("a");a2.href=u;a2.download="questline-template.csv";a2.click();URL.revokeObjectURL(u);}
-function importCsv(ev){const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{
-  const lines=String(rd.result).split(/\r?\n/).filter(l=>l.trim());const header=lines.shift().split(",").map(s=>s.trim().toLowerCase());const idx=n=>header.indexOf(n);
-  lines.forEach(line=>{const c=parseCsv(line);const q=blankQ();q.title=c[idx("title")]||"";q.intro=c[idx("intro")]||"";q.answer=c[idx("answer")]||"";
-    const bt=idx("block_text")>=0?c[idx("block_text")]:"";if(bt)q.blocks.push({type:"text",content:bt});
-    const hs=idx("hints")>=0?c[idx("hints")]:"";if(hs)hs.split(";").forEach(p=>{const[m,...t]=p.split(":");q.hints.push({reveal_after_min:+m||0,text:t.join(":"),media_type:"",media_url:""});});
-    wiz.questions.push(q);});wiz.sel=wiz.questions.length-1;drawAdmin();toast("Imported "+lines.length+" questions");};rd.readAsText(f);}
-function parseCsv(line){const o=[];let c="",q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===","&&!q){o.push(c);c="";}else c+=ch;}o.push(c);return o.map(s=>s.trim());}
+function downloadXlsxTemplate(){
+  if(typeof XLSX==="undefined"){toast("Spreadsheet library still loading — try again in a moment");return;}
+  const wb=XLSX.utils.book_new();
+  const q=[["Title","Intro","Answer","Info","CaseSensitive","Text","MediaType","MediaURL"],
+    ["Harbor clue","A short intro to set the scene.","ANCHOR","Stay on the footpath.","no","Look near the docks for a brass plaque.","image","https://drive.google.com/uc?id=FILE_ID"]];
+  const h=[["Question","RevealAfterMin","Text","MediaType","MediaURL"],
+    ["Harbor clue",5,"Check the blue building.","",""],
+    ["Harbor clue",10,"Zoom into the map.","image","https://photos.app.goo.gl/EXAMPLE"]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(q),"Questions");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(h),"Hints");
+  XLSX.writeFile(wb,"questline-template.xlsx");
+}
+const _mt=v=>{const s=String(v||"").trim().toLowerCase();return ["image","video","audio","link","url"].includes(s)?(s==="url"?"link":s):"";};
+function importXlsx(ev){const f=ev.target.files[0];if(!f)return;
+  if(typeof XLSX==="undefined"){toast("Spreadsheet library still loading — try again");return;}
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"});
+    const findSheet=n=>wb.SheetNames.find(s=>s.toLowerCase()===n)||wb.SheetNames.find(s=>s.toLowerCase().includes(n));
+    const qs=wb.Sheets[findSheet("questions")]; if(!qs){toast("No 'Questions' sheet found");return;}
+    const hs=wb.Sheets[findSheet("hints")];
+    const get=(r,k)=>{const kk=Object.keys(r).find(x=>x.toLowerCase().replace(/\s/g,"")===k);return kk?String(r[kk]).trim():"";};
+    const qrows=XLSX.utils.sheet_to_json(qs,{defval:""}).filter(r=>get(r,"title"));
+    const byTitle={};
+    const added=qrows.map(r=>{
+      const blocks=[]; const t=get(r,"text"); if(t)blocks.push({type:"text",content:t});
+      const mt=_mt(get(r,"mediatype")), mu=get(r,"mediaurl"); if(mt&&mu)blocks.push({type:mt,content:mu});
+      const q={title:get(r,"title"),intro:get(r,"intro"),answer:get(r,"answer"),info:get(r,"info"),
+        case_sensitive:/^(y|yes|true|1|case)/i.test(get(r,"casesensitive")),blocks,hints:[]};
+      byTitle[q.title.toLowerCase()]=q; return q;
+    });
+    (hs?XLSX.utils.sheet_to_json(hs,{defval:""}):[]).forEach(r=>{
+      const q=byTitle[get(r,"question").toLowerCase()]; if(!q)return;
+      const blocks=[]; const t=get(r,"text"); if(t)blocks.push({type:"text",content:t});
+      const mt=_mt(get(r,"mediatype")), mu=get(r,"mediaurl"); if(mt&&mu)blocks.push({type:mt,content:mu});
+      q.hints.push({reveal_after_min:+get(r,"revealaftermin")||0,blocks,_bt:"text",_bc:""});
+    });
+    added.forEach(q=>wiz.questions.push(q)); wiz.sel=Math.max(0,wiz.questions.length-1); drawAdmin();
+    toast("Imported "+added.length+" questions, "+added.reduce((n,q)=>n+q.hints.length,0)+" hints");
+  }catch(e){toast("Import failed: "+e.message);}};
+  rd.readAsArrayBuffer(f); ev.target.value="";}
 
 // ---- Themes ----
 function previewTheme(id){const t=adminData.themes.find(x=>x.id===id);if(!t)return;applyTheme(t.tokens);setRole("player");toast("Previewing "+t.name+" in Player view");}
@@ -641,14 +735,14 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
   const now=Date.parse(m.server_now),exp=m.expires_at?Math.max(0,(Date.parse(m.expires_at)-now)/1000):null;
   const done=m.teams.filter(t=>t.finished_at).length;
   const players=m.teams.reduce((n,t)=>n+(t.players||0),0);
-  const stats=[["Teams",m.teams.length],["Players",players],["Questions",m.total_questions],["Finished",done],["Time left",exp!=null?fmt(exp):"—"]];
+  const stats=[["Teams",m.teams.length],["Players",players],["Questions",m.total_questions],["Finished",done]];
   const head=$("monHead");if(head)head.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Watching "${esc(live.name||"")}" — PIN ${live.pin||""}</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="adminExtend('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">+15 min</button>
-      <button onclick="newRun('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">New run</button>
-      <button onclick="endGameMon('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">End game</button></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="pauseGame('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Pause…</button>
+      <button onclick="resumeGame('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Resume</button>
+      <button onclick="stopGame('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#b91c1c;color:#fff;">End game</button></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px;">${stats.map(s=>`<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${s[0]}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${s[1]}</div></div>`).join("")}</div></div>`;
   const tv=$("monTeams");if(tv)tv.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h2 style="margin:0 0 14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#18181b;">Team progress</h2><div style="display:flex;flex-direction:column;gap:9px;">

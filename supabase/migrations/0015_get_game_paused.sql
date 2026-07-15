@@ -1,0 +1,2 @@
+-- 0015_get_game_paused.sql — admin_get_game additionally returns paused_at + pause_message
+-- (so the admin UI can render pause/resume). Applied via MCP 2026-07-16 (full body in function).
