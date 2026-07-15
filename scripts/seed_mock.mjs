@@ -9,29 +9,44 @@ const sb = createClient(url, key, { auth: { persistSession: false } });
 const asset = (f) => `${url}/storage/v1/object/public/game-assets/${encodeURIComponent(f)}`;
 const iso = (minAgo) => new Date(Date.now() - minAgo * 60000).toISOString();
 
-// ---- themes ----
+// ---- themes: the 5 curated presets from the design (verbatim tokens) ----
 const THEMES = [
-  { name: "Vidurnakčio indigo", tokens: {
-      bg:"#fafafa", card:"#ffffff", ink:"#18181b", inkSoft:"#52525b", primary:"#4f46e5", onPrimary:"#ffffff",
-      muted:"#71717a", line:"#e4e4e7", field:"#f4f4f5", fontDisplay:"'Instrument Serif',serif",
-      fontBody:"'Space Grotesk',sans-serif", displayWeight:"400", displayTracking:".2px",
-      rBtn:"12px", rCard:"16px", rFrame:"20px", rInput:"12px" } },
-  { name: "Miško žalia", tokens: {
-      bg:"#f4f7f4", card:"#ffffff", ink:"#14261a", inkSoft:"#3f5346", primary:"#15803d", onPrimary:"#ffffff",
-      muted:"#5b6b60", line:"#dbe5dd", field:"#eef3ef", fontDisplay:"'Instrument Serif',serif",
-      fontBody:"'Space Grotesk',sans-serif", displayWeight:"400", displayTracking:".2px",
-      rBtn:"10px", rCard:"18px", rFrame:"22px", rInput:"10px" } },
-  { name: "Saulėlydžio korta", tokens: {
-      bg:"#fffaf5", card:"#ffffff", ink:"#2b1a12", inkSoft:"#6b4a37", primary:"#d97706", onPrimary:"#ffffff",
-      muted:"#8a6f5c", line:"#f0e2d5", field:"#fbf1e7", fontDisplay:"'Instrument Serif',serif",
-      fontBody:"'Space Grotesk',sans-serif", displayWeight:"400", displayTracking:".2px",
-      rBtn:"14px", rCard:"20px", rFrame:"24px", rInput:"14px" } },
+  { name: "Atlas", tokens: { id:"atlas", primary:"#0f766e", onPrimary:"#fff", secondary:"#5eead4",
+      bg:"linear-gradient(175deg,#eef6f5 0%,#fbfdfd 100%)", ink:"#0c1f1d", inkSoft:"#3f5c58", muted:"#7c928f",
+      card:"rgba(255,255,255,.88)", field:"rgba(255,255,255,.95)", line:"rgba(12,31,29,.12)",
+      fontDisplay:"'Space Grotesk',sans-serif", fontBody:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      displayWeight:"600", displayTracking:"-.01em", rFrame:"26px", rCard:"16px", rBtn:"11px", rInput:"11px",
+      desc:"Cool teal, grotesk type, soft 16px corners" } },
+  { name: "Ember", tokens: { id:"ember", primary:"#9a3412", onPrimary:"#fff", secondary:"#d97706",
+      bg:"linear-gradient(175deg,#f7f1e8 0%,#fdfaf5 100%)", ink:"#2a1508", inkSoft:"#6b4a33", muted:"#987f6c",
+      card:"rgba(255,255,255,.85)", field:"rgba(255,255,255,.95)", line:"rgba(42,21,8,.14)",
+      fontDisplay:"'Instrument Serif',serif", fontBody:"Georgia,'Times New Roman',serif",
+      displayWeight:"400", displayTracking:"0", rFrame:"6px", rCard:"3px", rBtn:"2px", rInput:"2px",
+      desc:"Warm editorial serif, sharp square corners" } },
+  { name: "Verdant", tokens: { id:"verdant", primary:"#166534", onPrimary:"#fff", secondary:"#a3e635",
+      bg:"linear-gradient(175deg,#eef4ec 0%,#f9fbf7 100%)", ink:"#122415", inkSoft:"#41573f", muted:"#7f9080",
+      card:"rgba(255,255,255,.88)", field:"rgba(255,255,255,.95)", line:"rgba(18,36,21,.12)",
+      fontDisplay:"'Space Grotesk',sans-serif", fontBody:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      displayWeight:"600", displayTracking:"-.01em", rFrame:"38px", rCard:"26px", rBtn:"999px", rInput:"16px",
+      desc:"Deep green, generous rounded organic shapes" } },
+  { name: "Noir", tokens: { id:"noir", primary:"#6366f1", onPrimary:"#fff", secondary:"#22d3ee",
+      bg:"linear-gradient(175deg,#121215 0%,#1b1b22 100%)", ink:"#e7e7ea", inkSoft:"#a6a6b0", muted:"#77777f",
+      card:"rgba(255,255,255,.055)", field:"rgba(255,255,255,.08)", line:"rgba(231,231,234,.14)",
+      fontDisplay:"'Space Grotesk',sans-serif", fontBody:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      displayWeight:"600", displayTracking:"0", rFrame:"14px", rCard:"10px", rBtn:"8px", rInput:"8px",
+      desc:"Dark mode, indigo accents, precise 8px geometry" } },
+  { name: "Salon", tokens: { id:"salon", primary:"#701a75", onPrimary:"#fff", secondary:"#db2777",
+      bg:"linear-gradient(175deg,#f6eff5 0%,#fcf9fc 100%)", ink:"#2b0e2d", inkSoft:"#614461", muted:"#937d92",
+      card:"rgba(255,255,255,.88)", field:"rgba(255,255,255,.95)", line:"rgba(43,14,45,.12)",
+      fontDisplay:"'Instrument Serif',serif", fontBody:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      displayWeight:"400", displayTracking:"0", rFrame:"30px", rCard:"20px", rBtn:"999px", rInput:"14px",
+      desc:"Plum serif elegance, pill buttons, soft curves" } },
 ];
 
 // ---- games (mock) ----
 const GAMES = [
   {
-    pin: "STAR42", name: "Švytintys ganytojai", status: "live", themeIdx: 0,
+    pin: "STAR42", name: "Švytintys ganytojai", status: "live", themeIdx: 3,
     description: "Kosminis nuotykis laukuose — 13 stočių maršrutas.", duration_min: 240, expiresMin: 240,
     questions: [
       { title:"Nesuprantamas kvietimas", intro:"Viskas prasidėjo ne nuo sprogimo, o nuo keisto kvietimo.",
@@ -59,7 +74,7 @@ const GAMES = [
     ],
   },
   {
-    pin: "OLD777", name: "Senamiesčio paslaptis", status: "ready", themeIdx: 2,
+    pin: "OLD777", name: "Senamiesčio paslaptis", status: "ready", themeIdx: 1,
     description: "Vakarinis miesto žaidimas — 5 mįslės senamiestyje.", duration_min: 120, expiresMin: null,
     questions: [
       { title:"Rotušės laikrodis", intro:"Kiek gargoilių saugo rotušę?", blocks:[{type:"text",text:"Suskaičiuok akmenines figūras."}], answer:"FA_KETURI", hints:[{reveal:5, text:"Pažiūrėk į kampus."}] },
@@ -68,7 +83,7 @@ const GAMES = [
     teams: [],
   },
   {
-    pin: "MUS100", name: "Muziejaus vagystė", status: "draft", themeIdx: 1,
+    pin: "MUS100", name: "Muziejaus vagystė", status: "draft", themeIdx: 0,
     description: "Uždaras kambarys muziejuje (juodraštis).", duration_min: 90, expiresMin: null,
     questions: [], teams: [],
   },

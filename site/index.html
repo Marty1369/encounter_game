@@ -1,326 +1,530 @@
 <!doctype html>
-<html lang="lt">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Riddle platforma</title>
+<title>Questline — live riddle platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  :root{
-    --bg:#fafafa; --card:#fff; --fg:#18181b; --soft:#52525b; --muted:#71717a; --faint:#a1a1aa;
-    --border:#e4e4e7; --primary:#4f46e5; --primary-fg:#fff; --field:#f4f4f5;
-    --ok:#16a34a; --ok-bg:#f0fdf4; --err:#dc2626; --err-bg:#fef2f2; --warn:#d97706; --warn-bg:#fffbeb;
-    --serif:'Instrument Serif',ui-serif,Georgia,serif; --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    --rbtn:12px; --rcard:16px; --rinput:12px;
-  }
-  *{box-sizing:border-box} html,body{margin:0;padding:0}
-  body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;
-    -webkit-text-size-adjust:100%;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
-  .wrap{max-width:640px;margin:0 auto;padding:0 20px}
-  h1,h2{font-family:var(--serif);font-weight:400;margin:0;letter-spacing:.2px}
-  h1{font-size:2rem;line-height:1.1}
-  .muted{color:var(--muted)} .faint{color:var(--faint)} .soft{color:var(--soft)}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--rcard);padding:20px}
-  .btn{appearance:none;border:0;border-radius:var(--rbtn);background:var(--primary);color:var(--primary-fg);
-    font-family:var(--sans);font-size:1rem;font-weight:600;padding:14px 18px;width:100%;cursor:pointer}
-  .btn:disabled{opacity:.55}
-  .btn.sec{background:var(--card);color:var(--fg);border:1px solid var(--border)}
-  .input{width:100%;height:52px;border:1px solid var(--border);border-radius:var(--rinput);padding:0 14px;
-    font-family:var(--sans);font-size:1.05rem;background:var(--card);color:var(--fg);outline:none}
-  .input:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
-  .pin-input{letter-spacing:.4em;text-transform:uppercase;text-align:center;font-weight:700;font-size:1.4rem}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#f2f2f0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18181b;min-height:100vh}
+  a{color:#18181b} a:hover{color:#52525b}
+  input,select,textarea{font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:2px solid #a1a1aa;outline-offset:0}
+  button{font-family:inherit}
   .hidden{display:none!important}
-  .center{min-height:82vh;display:flex;flex-direction:column;justify-content:center}
-  .row{display:flex;gap:8px} .row .btn{width:auto;padding:14px 20px}
-  header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
-  .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
-  .badge{font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--card);border:1px solid var(--border)}
-  .progress{height:6px;background:var(--border);border-radius:999px;overflow:hidden;margin-bottom:2px}
-  .progress>i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .4s}
-  .blocks p{margin:0 0 14px;white-space:pre-line}
-  .blocks img,.blocks video{width:100%;border:1px solid var(--border);border-radius:12px;display:block;margin:0 0 14px;background:#000}
-  .blocks a{color:var(--primary);font-weight:600}
-  .loc{display:inline-flex;align-items:center;gap:6px;color:var(--primary);text-decoration:none;font-weight:600;font-size:.95rem}
-  .fa{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--rinput);overflow:hidden;background:var(--card)}
-  .fa:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
-  .fa .pfx{display:flex;align-items:center;padding:0 12px;background:var(--field);color:var(--muted);font-weight:700;letter-spacing:.5px;border-right:1px solid var(--border);user-select:none}
-  .fa input{flex:1;border:0;outline:none;height:52px;padding:0 14px;font-size:1.05rem;font-family:var(--sans);background:transparent;color:var(--fg)}
-  .answerbar{position:sticky;bottom:0;background:color-mix(in srgb,var(--bg) 95%,transparent);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:12px 0;margin-top:16px}
-  .fb{border-radius:var(--rinput);padding:12px 14px;font-weight:600;margin-top:10px}
-  .fb.ok{background:var(--ok-bg);color:var(--ok)} .fb.err{background:var(--err-bg);color:var(--err)} .fb.warn{background:var(--warn-bg);color:var(--warn)}
-  .shake{animation:sh .4s} @keyframes sh{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-  .tabs{display:flex;gap:8px;margin:16px 0}
-  .tab{flex:1;text-align:center;padding:10px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);font-weight:600;cursor:pointer;color:var(--muted)}
-  .tab.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-  .dot{display:inline-block;min-width:18px;height:18px;line-height:18px;font-size:.7rem;border-radius:999px;background:var(--primary);color:var(--primary-fg);margin-left:6px;padding:0 5px}
-  .hint{border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
-  .hint.locked{opacity:.7} .hint .ht{font-weight:600;margin-bottom:8px}
-  .hint img,.hint video{width:100%;border-radius:10px;border:1px solid var(--border);margin-top:8px}
-  .banner{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,#fff);border-radius:12px;padding:10px 14px;margin:12px 0;font-weight:600;text-align:center}
-  .team-pick{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-  .team-chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:.9rem}
-  .team-chip.on{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
-  .spin{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto}
-  @keyframes sp{to{transform:rotate(360deg)}}
-  .lb{width:100%;border-collapse:collapse;margin-top:10px}
-  .lb td{padding:8px 6px;border-bottom:1px solid var(--border)}
-  .lb td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  @keyframes popin{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  /* player frame theme vars set at runtime on #frame */
+  #frame{--th-primary:#6366f1;--th-onPrimary:#fff;--th-bg:#fff;--th-ink:#18181b;--th-inkSoft:#52525b;--th-muted:#a1a1aa;
+    --th-card:#fff;--th-field:#f4f4f5;--th-line:#e4e4e7;--th-fontDisplay:'Space Grotesk',sans-serif;
+    --th-fontBody:-apple-system,sans-serif;--th-displayWeight:600;--th-displayTracking:0;--th-rFrame:16px;--th-rCard:12px;--th-rBtn:10px;--th-rInput:10px}
 </style>
 </head>
 <body>
 
-<div id="loading" class="wrap center" style="text-align:center"><div class="spin"></div><p class="muted" style="margin-top:14px">Kraunama…</p></div>
-
-<!-- PIN -->
-<div id="pin" class="wrap center hidden">
-  <div style="margin-bottom:22px;text-align:center">
-    <h1>Riddle platforma</h1>
-    <p class="muted" style="margin-top:8px">Įveskite žaidimo PIN kodą.</p>
-  </div>
-  <div class="card">
-    <input id="pinInput" class="input pin-input" maxlength="6" autocomplete="off" placeholder="PIN" />
-    <button id="pinBtn" class="btn" style="margin-top:12px">Toliau</button>
-    <div id="pinErr" class="fb err hidden"></div>
-  </div>
-</div>
-
-<!-- LOBBY -->
-<div id="lobby" class="wrap center hidden">
-  <div style="margin-bottom:18px">
-    <div class="faint" style="font-size:.8rem" id="lbPin"></div>
-    <h1 id="lbName"></h1>
-    <p class="muted" id="lbDesc" style="margin-top:6px"></p>
-  </div>
-  <div id="lbNotLive" class="banner hidden"></div>
-  <div id="lbJoin" class="card">
-    <div style="font-weight:600;margin-bottom:6px">Pasirinkite komandą arba sukurkite naują</div>
-    <div id="teamPick" class="team-pick"></div>
-    <input id="teamName" class="input" maxlength="40" autocomplete="off" placeholder="Komandos pavadinimas" />
-    <input id="playerName" class="input" style="margin-top:10px" maxlength="40" autocomplete="off" placeholder="Jūsų vardas" />
-    <button id="joinBtn" class="btn" style="margin-top:12px">Prisijungti</button>
-    <div id="joinErr" class="fb err hidden"></div>
-  </div>
-  <button class="btn sec" style="margin-top:12px" onclick="backToPin()">Kitas PIN</button>
-</div>
-
-<!-- GAME -->
-<div id="game" class="hidden">
-  <header><div class="wrap">
-    <div class="hrow"><span id="hTeam" style="font-weight:600"></span><span class="badge" id="hStage"></span></div>
-    <div class="progress"><i id="hBar"></i></div>
-    <div class="hrow" style="padding-top:4px"><span class="faint" style="font-size:.8rem" id="hGame"></span><span class="faint" style="font-size:.8rem" id="hTimer"></span></div>
-  </div></header>
-  <div class="wrap" style="padding-top:16px;padding-bottom:24px">
-    <div id="expiredBanner" class="banner hidden">Sesijos laikas pasibaigė. Palaukite, kol organizatorius pratęs.</div>
-    <div id="offlineBanner" class="banner hidden">Nėra ryšio — bandome dar kartą…</div>
-    <div class="tabs">
-      <div class="tab on" id="tabTask" onclick="setTab('task')">Užduotis</div>
-      <div class="tab" id="tabHints" onclick="setTab('hints')">Užuominos <span id="hintDot" class="dot hidden">0</span></div>
+<!-- ================= TOP BAR ================= -->
+<div style="position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 22px;background:#111113;color:#fafafa;flex-wrap:wrap;border-bottom:1px solid #27272a;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="width:30px;height:30px;border-radius:8px;background:#fafafa;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:#111113;">Q</div>
+    <div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;line-height:1.1;letter-spacing:.01em;">Questline</div>
+      <div style="font-size:10.5px;color:#71717a;letter-spacing:.08em;text-transform:uppercase;">Live riddle platform · prototype v2</div>
     </div>
-    <div id="taskView">
-      <div id="locLine" style="margin-bottom:10px"></div>
-      <div class="card"><h2 id="tTitle" style="font-size:1.6rem"></h2><div id="tIntro" class="muted" style="margin-top:6px"></div><div id="tBlocks" class="blocks" style="margin-top:14px"></div></div>
-      <div class="answerbar">
-        <div class="fa"><span class="pfx">FA_</span><input id="answer" autocomplete="off" autocapitalize="characters" placeholder="atsakymas" enterkeyhint="send" /></div>
-        <div id="feedback"></div>
-        <button id="submitBtn" class="btn" style="margin-top:10px">Tikrinti</button>
-      </div>
-    </div>
-    <div id="hintsView" class="hidden"></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:2px;background:#1c1c1f;border-radius:10px;padding:3px;border:1px solid #27272a;">
+    <button id="roleP" onclick="setRole('player')" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;">Player</button>
+    <button id="roleA" onclick="setRole('admin')" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;">Game creator</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <button onclick="clockPlus()" title="Extend the live game by 1 minute" style="border:1px solid #3f3f46;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:500;font-size:11.5px;background:transparent;color:#a1a1aa;">Clock +1 min</button>
+    <button onclick="resetView()" style="border:1px solid #3f3f46;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:500;font-size:11.5px;background:transparent;color:#a1a1aa;">Reset</button>
   </div>
 </div>
 
-<!-- FINISHED -->
-<div id="finished" class="wrap center hidden" style="text-align:center">
-  <div style="font-size:3rem">🏁</div>
-  <h1 style="margin-top:8px">Finišas!</h1>
-  <p class="muted" id="fMsg" style="margin-top:8px"></p>
-  <div class="card" style="margin-top:18px">
-    <div class="muted" style="font-size:.85rem">Jūsų laikas</div>
-    <div id="fTime" style="font-family:var(--serif);font-size:2.4rem;margin-top:4px"></div>
+<!-- ================= PLAYER ================= -->
+<div id="player" style="display:flex;justify-content:center;padding:32px 14px 64px;">
+  <div id="frame" style="width:min(408px,100%);border-radius:var(--th-rFrame);overflow:hidden;box-shadow:0 32px 80px -32px rgba(24,24,27,.4),0 4px 16px rgba(24,24,27,.1);background:var(--th-bg);color:var(--th-ink);min-height:730px;display:flex;flex-direction:column;font-family:var(--th-fontBody);">
+    <div id="pscreen"></div>
   </div>
-  <div class="card" style="margin-top:12px;text-align:left">
-    <div style="font-weight:600">Rezultatai</div>
-    <table class="lb"><tbody id="fBoard"></tbody></table>
-  </div>
-  <button class="btn sec" style="margin-top:14px" onclick="backToPin()">Į pradžią</button>
 </div>
+
+<!-- ================= ADMIN ================= -->
+<div id="admin" class="hidden"></div>
+
+<div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;background:#18181b;color:#fafafa;padding:11px 22px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 16px 40px -12px rgba(24,24,27,.45);border:1px solid #3f3f46;opacity:0;transition:opacity .2s;pointer-events:none;"></div>
 
 <script>
 const SB_URL="https://shgbvoxbwmhhridiihxn.supabase.co";
 const ANON="sb_publishable_S_K9CFTHDQRlLQOg9KPclA_wtJyavJr";
-const TOKEN_KEY="sg_token", PIN_KEY="sg_pin", OUTBOX_KEY="sg_outbox";
-async function rpc(fn,args){
-  const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",
-    headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
-  if(!r.ok) throw new Error("http "+r.status); return await r.json();
-}
 const $=id=>document.getElementById(id);
-let state=null, lobby=null, offset=0, tab="task", pickedTeam="";
-const serverNow=()=>Date.now()+offset;
-const getToken=()=>localStorage.getItem(TOKEN_KEY);
-const getPin=()=>localStorage.getItem(PIN_KEY);
-
-function show(v){ for(const s of ["loading","pin","lobby","game","finished"]) $(s).classList.toggle("hidden", s!==v); }
-function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
+async function rpc(fn,args){const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",
+  headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+  if(!r.ok)throw new Error("http "+r.status);return await r.json();}
+let CODE=sessionStorage.getItem("admin_code")||"";
+const a=(fn,args={})=>rpc(fn,{p_code:CODE,...args});
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
+let toastT;function toast(m){const t=$("toast");t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,1900);}
 
-// theme
-function applyTheme(t){
-  if(!t) return; const r=document.documentElement.style; const set=(k,v)=>{if(v)r.setProperty(k,v);};
-  set("--bg",t.bg);set("--card",t.card);set("--fg",t.ink);set("--soft",t.inkSoft);set("--muted",t.muted);
-  set("--border",t.line);set("--primary",t.primary);set("--primary-fg",t.onPrimary);set("--field",t.field);
-  set("--serif",t.fontDisplay);set("--sans",t.fontBody);set("--rbtn",t.rBtn);set("--rcard",t.rCard);set("--rinput",t.rInput);
+// ---- role ----
+let role="player";
+function setRole(r){role=r;
+  $("roleP").style.background=r==="player"?"#fafafa":"transparent";$("roleP").style.color=r==="player"?"#111113":"#a1a1aa";
+  $("roleA").style.background=r==="admin"?"#fafafa":"transparent";$("roleA").style.color=r==="admin"?"#111113":"#a1a1aa";
+  $("player").classList.toggle("hidden",r!=="player");
+  $("admin").classList.toggle("hidden",r!=="player"?false:true); $("admin").classList.toggle("hidden",r!=="admin");
+  if(r==="admin")renderAdmin();
 }
+function clockPlus(){ // extend the live game by 1 min (real analogue of the sandbox clock)
+  adminData?.games?.filter(g=>g.status==="live").forEach(g=>a("admin_extend",{p_game:g.id,p_minutes:1}));
+  toast("Live game clock +1 min");
+}
+function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:""};localStorage.removeItem("q_token");localStorage.removeItem("q_pin");renderPlayer();}
+
+// ===================== PLAYER =====================
+const TH=["primary","onPrimary","bg","ink","inkSoft","muted","card","field","line","fontDisplay","fontBody","displayWeight","displayTracking","rFrame","rCard","rBtn","rInput"];
+const map={fontDisplay:"fontDisplay",fontBody:"fontBody"};
+function applyTheme(t){if(!t)return;const f=$("frame").style;const kv={primary:"--th-primary",onPrimary:"--th-onPrimary",bg:"--th-bg",ink:"--th-ink",inkSoft:"--th-inkSoft",muted:"--th-muted",card:"--th-card",field:"--th-field",line:"--th-line",fontDisplay:"--th-fontDisplay",fontBody:"--th-fontBody",displayWeight:"--th-displayWeight",displayTracking:"--th-displayTracking",rFrame:"--th-rFrame",rCard:"--th-rCard",rBtn:"--th-rBtn",rInput:"--th-rInput"};
+  for(const k in kv)if(t[k]!=null)f.setProperty(kv[k],t[k]);}
+
+let pState={screen:"join",pin:"",name:"",active:null,team:""},pGameState=null,pOffset=0,pRevealed=new Set(),pLookupT;
+const pToken=()=>localStorage.getItem("q_token");
+const serverNow=()=>Date.now()+pOffset;
+
+async function pLookup(){
+  const pin=pState.pin.trim(); if(pin.length<4){pState.active=null;renderPlayer();return;}
+  try{const g=await rpc("get_game_by_pin",{p_pin:pin});pState.active=g.error?null:g;if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);}catch{pState.active=null;}
+  renderPlayer();
+}
+async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pState.name.trim())return; pState.screen="teams"; renderPlayer(); }
+async function pJoin(team){
+  const t=(team||pState.team||"").trim(); if(!t)return;
+  try{const res=await rpc("join_game",{p_pin:pState.pin,p_team:t,p_name:pState.name});
+    if(res.error){toast(joinErr(res.error));return;}
+    localStorage.setItem("q_token",res.session_token);localStorage.setItem("q_pin",pState.pin.toUpperCase());
+    applyState(res.state);pState.screen="game";renderPlayer();
+  }catch{toast("Could not join.");}
+}
+function joinErr(e){return{bad_team:"Bad team name.",bad_name:"Enter your name.",not_found:"Game not found.",not_live:"Game hasn't started.",expired:"Game has ended.",full:"Team limit reached."}[e]||"Error.";}
+function applyState(s){if(s.server_now)pOffset=Date.parse(s.server_now)-Date.now();pGameState=s;if(s.theme)applyTheme(s.theme);}
+async function pRefresh(){const t=pToken();if(!t)return;try{const s=await rpc("get_state",{p_session:t});if(s.error==="bad_session"){localStorage.removeItem("q_token");pState.screen="join";}else{applyState(s);}renderPlayer();}catch{}}
 
 // outbox
-const loadOut=()=>{try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||"[]")}catch{return[]}};
-const saveOut=x=>localStorage.setItem(OUTBOX_KEY,JSON.stringify(x));
-async function flush(it){const res=await rpc("submit_answer",{p_session:it.token,p_input:it.input,p_mutation_id:it.mid});saveOut(loadOut().filter(i=>i.mid!==it.mid));return res;}
+const loadOut=()=>{try{return JSON.parse(localStorage.getItem("q_outbox")||"[]")}catch{return[]}};
+const saveOut=x=>localStorage.setItem("q_outbox",JSON.stringify(x));
+async function flush(it){const r=await rpc("submit_answer",{p_session:it.token,p_input:it.input,p_mutation_id:it.mid});saveOut(loadOut().filter(i=>i.mid!==it.mid));return r;}
 async function drain(){for(const it of loadOut()){try{await flush(it)}catch{}}}
 
-// ---- PIN ----
-async function lookupPin(){
-  const p=$("pinInput").value.trim(); const err=$("pinErr"); err.classList.add("hidden");
-  if(p.length<4){err.textContent="Įveskite PIN.";err.classList.remove("hidden");return;}
-  $("pinBtn").disabled=true;
-  try{
-    const g=await rpc("get_game_by_pin",{p_pin:p});
-    if(g.error){err.textContent="Žaidimas nerastas.";err.classList.remove("hidden");$("pinBtn").disabled=false;return;}
-    lobby=g; localStorage.setItem(PIN_KEY,p.toUpperCase()); applyTheme(g.theme); renderLobby();
-  }catch(e){err.textContent="Nepavyko. Patikrinkite ryšį.";err.classList.remove("hidden");}
-  $("pinBtn").disabled=false;
-}
-function renderLobby(){
-  show("lobby");
-  $("lbPin").textContent="PIN "+getPin();
-  $("lbName").textContent=lobby.name||"";
-  $("lbDesc").textContent=lobby.description||"";
-  const live=lobby.status==="live" && !lobby.expired;
-  $("lbJoin").classList.toggle("hidden",!live);
-  const nl=$("lbNotLive");
-  if(!live){ nl.classList.remove("hidden");
-    nl.textContent = lobby.expired?"Šis žaidimas jau pasibaigė." : lobby.status==="ended"?"Šis žaidimas baigtas." : "Žaidimas dar neprasidėjo. Palaukite organizatoriaus.";
-  } else nl.classList.add("hidden");
-  const tp=$("teamPick"); tp.innerHTML="";
-  (lobby.teams||[]).forEach(t=>{
-    const el=document.createElement("div"); el.className="team-chip"; el.textContent=t.name+" ("+t.players+")";
-    el.onclick=()=>{pickedTeam=t.name;$("teamName").value=t.name;document.querySelectorAll(".team-chip").forEach(c=>c.classList.remove("on"));el.classList.add("on");};
-    tp.appendChild(el);
-  });
-}
-async function join(){
-  const team=$("teamName").value.trim(), name=$("playerName").value.trim(), err=$("joinErr"); err.classList.add("hidden");
-  if(!team){err.textContent="Įveskite komandos pavadinimą.";err.classList.remove("hidden");return;}
-  if(!name){err.textContent="Įveskite savo vardą.";err.classList.remove("hidden");return;}
-  $("joinBtn").disabled=true;
-  try{
-    const res=await rpc("join_game",{p_pin:getPin(),p_team:team,p_name:name});
-    if(res.error){err.textContent=joinErrMsg(res.error);err.classList.remove("hidden");$("joinBtn").disabled=false;return;}
-    localStorage.setItem(TOKEN_KEY,res.session_token);
-    if(res.state){apply(res.state);}
-  }catch(e){err.textContent="Nepavyko prisijungti.";err.classList.remove("hidden");}
-  $("joinBtn").disabled=false;
-}
-function joinErrMsg(e){return{bad_team:"Blogas komandos pavadinimas.",bad_name:"Įveskite vardą.",not_found:"Žaidimas nerastas.",not_live:"Žaidimas neprasidėjęs.",expired:"Žaidimas pasibaigė.",full:"Komandų limitas pasiektas."}[e]||"Klaida.";}
-function backToPin(){localStorage.removeItem(TOKEN_KEY);localStorage.removeItem(PIN_KEY);state=null;lobby=null;$("pinInput").value="";show("pin");}
-
-// ---- state ----
-function apply(s){if(s.server_now)offset=Date.parse(s.server_now)-Date.now();state=s;if(s.theme)applyTheme(s.theme);render();}
-async function loadState(){
-  const t=getToken(); if(!t){ if(!lobby) show(getPin()?"pin":"pin"); return; }
-  try{ const s=await rpc("get_state",{p_session:t}); $("offlineBanner").classList.add("hidden");
-    if(s.error==="bad_session"){localStorage.removeItem(TOKEN_KEY);show("pin");return;} apply(s);
-  }catch(e){ $("offlineBanner").classList.remove("hidden"); if(!state) show(getToken()?"game":"pin"); }
+let pFeedback=null,pAnswer="";
+async function pSubmit(){
+  const word=pAnswer.trim();if(!word)return;
+  const it={token:pToken(),input:word,mid:crypto.randomUUID()};saveOut([...loadOut(),it]);
+  try{const res=await flush(it);
+    if(res.error==="expired"){pFeedback={msg:"Session ended.",bg:"#fffbeb",color:"#d97706",anim:"none"};await pRefresh();}
+    else if(res.correct){pFeedback={msg:"Correct — next challenge",bg:"#f0fdf4",color:"#15803d",anim:"popin .3s ease"};pAnswer="";await pRefresh();return;}
+    else{pFeedback={msg:"Not quite — try again",bg:"#fef2f2",color:"#b91c1c",anim:"shake .4s ease"};}
+  }catch{pFeedback={msg:"No connection — saved, retrying…",bg:"#fffbeb",color:"#d97706",anim:"none"};}
+  renderPlayer();
 }
 
-const revealed=new Set();
-async function submitAnswer(){
-  const word=$("answer").value.trim(), fb=$("feedback"); if(!word)return;
-  $("submitBtn").disabled=true; fb.className=""; fb.textContent="";
-  const it={token:getToken(),input:word,mid:crypto.randomUUID()}; saveOut([...loadOut(),it]);
-  try{ const res=await flush(it);
-    if(res.error==="expired"){fb.className="fb warn";fb.textContent="Sesija pasibaigė.";await loadState();}
-    else if(res.correct){fb.className="fb ok";fb.textContent="Teisingai! 🎉";$("answer").value="";await loadState();}
-    else{fb.className="fb err shake";fb.textContent="Neteisingai. Bandykite dar kartą.";}
-  }catch(e){fb.className="fb warn";fb.textContent="Nėra ryšio — atsakymas išsaugotas, bandome dar kartą…";}
-  $("submitBtn").disabled=false;
-}
-function setTab(t){tab=t;render();}
-
-// ---- render play ----
-function render(){
-  if(!state){return;}
-  if(state.finished){ show("finished");
-    $("fMsg").textContent=(state.team?.name||"")+" — įveikėte "+(state.total_questions||"")+" užduotis!";
-    $("fTime").textContent=fmt(state.total_seconds||0); loadBoard(); return;
+function renderPlayer(){
+  const s=pState;
+  if(pToken()&&pGameState&&(s.screen==="game"||s.screen==="done")){
+    if(pGameState.finished)return pDone();
+    return pGame();
   }
-  show("game");
-  const q=state.question;
-  $("hTeam").textContent=state.team?.name||"";
-  $("hGame").textContent=state.game_name||"";
-  $("hStage").textContent=q.ord+" / "+state.total_questions;
-  $("hBar").style.width=(q.ord/state.total_questions*100)+"%";
-  $("expiredBanner").classList.toggle("hidden",!state.expired);
-  $("submitBtn").disabled=!!state.expired;
-  const loc=$("locLine");
-  loc.innerHTML=(q.lat!=null&&q.lng!=null)?'<a class="loc" target="_blank" rel="noreferrer" href="https://www.google.com/maps?q='+q.lat+','+q.lng+'">📍 '+esc(q.location_name||"Žemėlapis")+'</a>':"";
-  $("tTitle").textContent=q.title||"";
-  $("tIntro").textContent=q.intro||"";
-  $("tBlocks").innerHTML=(q.blocks||[]).map(renderBlock).join("");
-  const hints=state.hints||[]; const unlocked=hints.filter(h=>h.unlocked).length; const dot=$("hintDot");
-  if(hints.length){dot.classList.remove("hidden");dot.textContent=unlocked+"/"+hints.length;}else dot.classList.add("hidden");
-  $("taskView").classList.toggle("hidden",tab!=="task");
-  $("hintsView").classList.toggle("hidden",tab!=="hints");
-  $("tabTask").classList.toggle("on",tab==="task");
-  $("tabHints").classList.toggle("on",tab==="hints");
-  if(tab==="hints")renderHints();
-  for(const h of hints){if(h.unlocked&&!revealed.has(h.id)){revealed.add(h.id);rpc("mark_hint_revealed",{p_session:getToken(),p_hint_id:h.id}).catch(()=>{});}}
+  if(s.screen==="teams")return pTeams();
+  return pJoinScreen();
 }
-function media(type,url){
-  if(!url)return"";
-  if(type==="image")return '<img loading="lazy" src="'+esc(url)+'" alt="">';
-  if(type==="video")return '<video controls playsinline preload="metadata" src="'+esc(url)+'"></video>';
-  if(type==="audio")return '<audio controls style="width:100%" src="'+esc(url)+'"></audio>';
-  if(type==="link")return '<a href="'+esc(url)+'" target="_blank" rel="noreferrer">'+esc(url)+'</a>';
-  return "";
-}
-function renderBlock(b){ if(b.type==="text")return "<p>"+esc(b.text)+"</p>"; return media(b.type,b.url); }
-function renderHints(){
-  const hints=[...(state.hints||[])].sort((a,b)=>a.ord-b.ord);
-  if(!hints.length){$("hintsView").innerHTML='<p class="muted" style="text-align:center;padding:24px 0">Šiai užduočiai užuominų nėra.</p>';return;}
-  const firstLocked=hints.find(h=>!h.unlocked);
-  if(firstLocked){const rem=(Date.parse(state.activated_at)+firstLocked.reveal_after_min*60000-serverNow())/1000;if(rem<=0)loadState();}
-  let html="";
-  for(const h of hints){
-    if(!h.unlocked){ if(h.id!==firstLocked?.id)continue;
-      const rem=(Date.parse(state.activated_at)+h.reveal_after_min*60000-serverNow())/1000;
-      html+='<div class="hint locked"><div class="ht">🔒 Užuomina '+h.ord+'</div><div class="muted" style="font-size:.85rem">'+(rem>0?("po "+fmt(rem)):"atrakinama…")+'</div></div>';
-    }else{
-      html+='<div class="hint"><div class="ht">💡 Užuomina '+h.ord+'</div>'+(h.text?'<p style="margin:0;white-space:pre-line">'+esc(h.text)+'</p>':"")+media(h.media_type,h.media_url)+'</div>';
-    }
+// ---- Join ----
+function pJoinScreen(){
+  const g=pState.active, live=g&&g.status==="live"&&!g.expired;
+  let card;
+  if(g){
+    const regColor=live?"#15803d":"#a1a1aa", regLabel=live?"Registration open":(g.expired?"Ended":(g.status==="ready"?"Not started":"Draft"));
+    card=`<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:11px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+        <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:19px;">${esc(g.name)}</div>
+        <span style="font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:${regColor};">● ${regLabel}</span></div>
+      <div style="font-size:13px;color:var(--th-inkSoft);line-height:1.55;">${esc(g.description||"")}</div>
+      <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);margin-top:4px;">Game PIN</label>
+      <input id="pin" value="${esc(pState.pin)}" oninput="pState.pin=this.value;clearTimeout(pLookupT);pLookupT=setTimeout(pLookup,350)" placeholder="0000" style="width:100%;box-sizing:border-box;padding:14px;font-size:24px;letter-spacing:.4em;text-align:center;font-weight:600;font-family:'Space Grotesk',monospace;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);text-transform:uppercase;">
+      <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Your name</label>
+      <input id="pname" value="${esc(pState.name)}" oninput="pState.name=this.value" placeholder="e.g. Alex" style="width:100%;box-sizing:border-box;padding:13px 15px;font-size:15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
+      <button onclick="pEnter()" ${live?"":"disabled"} style="border:0;cursor:pointer;margin-top:6px;padding:15px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15.5px;letter-spacing:.02em;background:var(--th-primary);color:var(--th-onPrimary);min-height:50px;opacity:${live?1:.5};">Enter the game</button>
+    </div>`;
+  }else{
+    card=`<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:11px;">
+      <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Game PIN</label>
+      <input id="pin" value="${esc(pState.pin)}" oninput="pState.pin=this.value;clearTimeout(pLookupT);pLookupT=setTimeout(pLookup,350)" placeholder="0000" style="width:100%;box-sizing:border-box;padding:14px;font-size:24px;letter-spacing:.4em;text-align:center;font-weight:600;font-family:'Space Grotesk',monospace;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);text-transform:uppercase;">
+      <div style="font-size:13.5px;color:var(--th-inkSoft);text-align:center;line-height:1.6;padding:6px 0;">Enter a game PIN to begin.<br>Try <strong>STAR42</strong>.</div></div>`;
   }
-  $("hintsView").innerHTML=html;
+  $("pscreen").innerHTML=`<div style="padding:34px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .25s ease;">
+    <div style="padding:10px 0 2px;">
+      <div style="width:44px;height:44px;border-radius:var(--th-rBtn);background:var(--th-primary);display:grid;place-items:center;font-family:var(--th-fontDisplay);font-size:22px;color:var(--th-onPrimary);">Q</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:30px;line-height:1.12;margin-top:14px;letter-spacing:var(--th-displayTracking);">Ready to play?</div>
+      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;line-height:1.5;">Enter your game PIN and name to join.</div>
+    </div>${card}</div>`;
 }
-async function loadBoard(){
-  try{ const lb=await rpc("leaderboard",{p_pin:getPin()});
-    $("fBoard").innerHTML=(lb||[]).map((r,i)=>'<tr><td>'+(i+1)+'. '+esc(r.name)+'</td><td>'+fmt(r.total_seconds)+'</td></tr>').join("")||'<tr><td class="muted">Kol kas nėra baigusių.</td></tr>';
-  }catch{}
+// ---- Team pick ----
+function pTeams(){
+  const g=pState.active;
+  const chips=(g.teams||[]).map(t=>`<button onclick="pJoin('${esc(t.name).replace(/'/g,"\\'")}')" style="border:1px solid var(--th-line);cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px 17px;border-radius:var(--th-rCard);background:var(--th-card);color:var(--th-ink);min-height:58px;">
+    <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:16px;">${esc(t.name)}</span>
+    <span style="font-size:12px;color:var(--th-muted);">${t.players} ${t.players===1?"member":"members"}</span></span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--th-primary);white-space:nowrap;">Join</span></button>`).join("");
+  $("pscreen").innerHTML=`<div style="padding:32px 24px;display:flex;flex-direction:column;gap:16px;animation:fadeup .25s ease;">
+    <div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:27px;letter-spacing:var(--th-displayTracking);">Choose your team</div>
+    <div style="font-size:13.5px;color:var(--th-inkSoft);margin-top:4px;">Welcome, ${esc(pState.name)}. Join a team or found your own.</div></div>
+    <div style="display:flex;flex-direction:column;gap:9px;">${chips||'<div style="font-size:13px;color:var(--th-muted);">No teams yet — found the first one.</div>'}</div>
+    <div style="display:flex;gap:10px;align-items:center;"><div style="flex:1;height:1px;background:var(--th-line);"></div>
+      <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--th-muted);">or found one</span>
+      <div style="flex:1;height:1px;background:var(--th-line);"></div></div>
+    <div style="display:flex;gap:8px;"><input id="newteam" value="${esc(pState.team)}" oninput="pState.team=this.value" placeholder="New team name" style="flex:1;min-width:0;padding:13px 15px;font-size:14.5px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
+      <button onclick="pJoin()" style="border:0;cursor:pointer;padding:0 20px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:var(--th-primary);color:var(--th-onPrimary);min-height:48px;">Create</button></div></div>`;
+}
+// ---- Game ----
+function pGame(){
+  const st=pGameState,q=st.question;
+  const blocks=(q.blocks||[]).map(b=>{
+    if(b.type==="text")return `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);">${esc(b.text)}</div>`;
+    if(b.type==="image")return `<div role="img" style="width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(b.url)}');"></div>`;
+    if(b.type==="video")return `<video controls playsinline preload="metadata" src="${esc(b.url)}" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:#000;"></video>`;
+    const lbl={video:"Watch video clue",audio:"Play audio clue",url:"Open link",link:"Open link"}[b.type]||"Open";
+    return `<a href="${esc(b.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);"><span style="width:30px;height:30px;border-radius:50%;background:var(--th-primary);color:var(--th-onPrimary);display:grid;place-items:center;font-size:11px;flex-shrink:0;">▶</span><span style="font-weight:600;font-size:13px;">${lbl}</span></a>`;
+  }).join("");
+  const hints=(st.hints||[]).sort((a,b)=>a.ord-b.ord);
+  for(const h of hints)if(h.unlocked&&!pRevealed.has(h.id)){pRevealed.add(h.id);rpc("mark_hint_revealed",{p_session:pToken(),p_hint_id:h.id}).catch(()=>{});}
+  const hintHtml=hints.length?hints.map(h=>{
+    const open=h.unlocked;const title="Hint "+String(h.ord).padStart(2,"0");
+    let badge,badgeColor,body="";
+    if(open){badge="unlocked";badgeColor="#15803d";
+      body=`<div style="font-size:14px;color:var(--th-ink);margin-top:7px;line-height:1.55;">${esc(h.text||"")}</div>`+
+        (h.media_type==="image"&&h.media_url?`<div role="img" style="margin-top:8px;width:100%;aspect-ratio:16/10;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:var(--th-field) center/cover no-repeat;background-image:url('${esc(h.media_url)}');"></div>`:"")+
+        (h.media_url&&h.media_type&&h.media_type!=="image"?`<a href="${esc(h.media_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:9px 14px;border:1px solid var(--th-line);border-radius:var(--th-rBtn);background:var(--th-field);text-decoration:none;color:var(--th-ink);font-weight:600;font-size:12.5px;">Open clue</a>`:"");
+    }else{const rem=(Date.parse(st.activated_at)+h.reveal_after_min*60000-serverNow())/1000;badge="unlocks in "+fmt(rem>0?rem:0);badgeColor="var(--th-muted)";if(rem<=0)setTimeout(pRefresh,400);}
+    return `<div style="border-top:1px solid var(--th-line);padding:11px 2px 4px;"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">
+      <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${open?"var(--th-ink)":"var(--th-muted)"};">${title}</span>
+      <span style="font-size:11px;font-weight:600;color:${badgeColor};white-space:nowrap;font-variant-numeric:tabular-nums;">${badge}</span></div>${body}</div>`;
+  }).join(""):`<div style="font-size:12.5px;color:var(--th-muted);">No hints for this challenge.</div>`;
+  const fb=pFeedback?`<div style="font-size:13px;font-weight:600;text-align:center;padding:9px 12px;border-radius:var(--th-rInput);background:${pFeedback.bg};color:${pFeedback.color};animation:${pFeedback.anim};">${esc(pFeedback.msg)}</div>`:"";
+  $("pscreen").innerHTML=`<div style="padding:26px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
+      <div><div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--th-muted);">${esc(st.team.name)}</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:13px;margin-top:4px;color:var(--th-inkSoft);letter-spacing:.04em;">Challenge ${q.ord} of ${st.total_questions}</div></div>
+      <div id="pElapsed" style="font-family:'Space Grotesk',monospace;font-weight:600;font-size:14px;color:var(--th-primary);white-space:nowrap;font-variant-numeric:tabular-nums;"></div></div>
+    <div style="height:3px;border-radius:999px;background:var(--th-line);overflow:hidden;"><div style="height:100%;background:var(--th-primary);transition:width .4s ease;width:${q.ord/st.total_questions*100}%;"></div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;line-height:1.2;letter-spacing:var(--th-displayTracking);">${esc(q.title)}</div>
+      ${q.intro?`<div style="font-size:13px;color:var(--th-inkSoft);font-style:italic;margin-top:-4px;">${esc(q.intro)}</div>`:""}
+      ${blocks}
+      <div style="display:flex;gap:8px;margin-top:2px;">
+        <input id="answer" value="${esc(pAnswer)}" oninput="pAnswer=this.value" onkeydown="if(event.key==='Enter')pSubmit()" placeholder="Your answer" style="flex:1;min-width:0;padding:13px 15px;font-size:15.5px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
+        <button onclick="pSubmit()" style="border:0;cursor:pointer;padding:0 22px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:14.5px;background:var(--th-primary);color:var(--th-onPrimary);min-height:48px;">Submit</button></div>
+      ${fb}
+      <div style="font-size:11px;color:var(--th-muted);text-align:center;">Shared progress — any teammate's correct answer advances the team.</div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Hints</div>
+      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div>${hintHtml}</div></div>`;
+  const el=$("answer");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}
+}
+// ---- Finish ----
+async function pDone(){
+  const st=pGameState;let board=[];try{board=await rpc("leaderboard",{p_pin:localStorage.getItem("q_pin")});}catch{}
+  const myRank=(board.findIndex(r=>r.name===st.team.name)+1)||"—";
+  const rows=board.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--th-line);${r.name===st.team.name?'background:var(--th-field);':''}">
+    <span style="width:22px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;color:var(--th-primary);">${i+1}</span>
+    <span style="flex:1;font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(r.name)}</span>
+    <span style="font-size:12.5px;font-weight:600;color:var(--th-ink);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt(r.total_seconds)}</span></div>`).join("");
+  $("pscreen").innerHTML=`<div style="padding:36px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .3s ease;">
+    <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">${esc(st.team.name)}</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">Quest complete</div>
+      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">All challenges solved.</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Final rank</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;">${myRank}</div></div>
+      <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;margin-bottom:8px;">Final standings</div><div style="display:flex;flex-direction:column;">${rows||'<div style="font-size:12.5px;color:var(--th-muted);padding:8px 0;">No finishers yet.</div>'}</div></div>
+    <button onclick="resetView()" style="border:1px solid var(--th-line);cursor:pointer;padding:13px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:transparent;color:var(--th-ink);">Back to start</button></div>`;
 }
 
-// timers + wiring
-setInterval(()=>{ if(!state||state.finished||!state.activated_at)return; $("hTimer").textContent="⏱ "+fmt((serverNow()-Date.parse(state.activated_at))/1000); if(tab==="hints")renderHints(); },1000);
-$("pinBtn").onclick=lookupPin;
-$("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")lookupPin();});
-$("joinBtn").onclick=join;
-$("submitBtn").onclick=submitAnswer;
-$("answer").addEventListener("keydown",e=>{if(e.key==="Enter")submitAnswer();});
-window.addEventListener("online",()=>{drain();loadState();});
-setInterval(()=>{if(getToken()){loadState();drain();}},10000);
+// elapsed ticker
+setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished||!pGameState.activated_at)return;
+  const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(pGameState.activated_at))/1000);
+  if(pGameState.hints&&pGameState.hints.some(h=>!h.unlocked))pGame.needsTick;},1000);
+setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();}},10000);
+
+// ===================== ADMIN =====================
+let adminData=null,adminView="games",selGame=null,wiz=null,wizStep=1;
+async function renderAdmin(){
+  if(!CODE){return adminLogin();}
+  try{adminData=await a("admin_list");if(adminData.error){CODE="";sessionStorage.removeItem("admin_code");return adminLogin();}}
+  catch{return adminLogin();}
+  drawAdmin();
+}
+function adminLogin(){
+  $("admin").innerHTML=`<div style="max-width:380px;margin:14vh auto;padding:0 18px;">
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:600;text-align:center;font-size:22px;">Game creator</h1>
+    <p style="text-align:center;color:#71717a;margin-top:6px;font-size:13px;">Enter the admin passcode.</p>
+    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:16px;margin-top:16px;">
+      <input id="acode" type="password" placeholder="Passcode" style="width:100%;padding:11px 13px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter')adminAuth()">
+      <button onclick="adminAuth()" style="width:100%;margin-top:10px;border:0;cursor:pointer;padding:11px;border-radius:10px;font-weight:600;background:#18181b;color:#fff;">Unlock</button>
+      <div id="acodeErr" style="color:#dc2626;font-size:12.5px;margin-top:8px;"></div></div></div>`;
+}
+async function adminAuth(){CODE=$("acode").value;try{const r=await a("admin_list");if(r.error){$("acodeErr").textContent="Wrong passcode.";CODE="";return;}sessionStorage.setItem("admin_code",CODE);adminData=r;drawAdmin();}catch{$("acodeErr").textContent="Error.";}}
+
+function sideMenu(){
+  const items=[["games","Games"],["wizard","Wizard"],["themes","Themes"],["monitor","Live monitor"]];
+  const live=adminData.games.find(g=>g.status==="live");
+  return `<aside style="position:sticky;top:78px;display:flex;flex-direction:column;gap:2px;">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:#a1a1aa;padding:4px 12px 8px;">Manage</div>
+    ${items.map(([k,l])=>`<button onclick="adminGo('${k}')" style="border:0;cursor:pointer;text-align:left;padding:10px 12px;border-radius:9px;font-weight:${adminView===k?600:500};font-size:13.5px;background:${adminView===k?"#18181b":"transparent"};color:${adminView===k?"#fff":"#52525b"};">${l}</button>`).join("")}
+    <div style="margin-top:16px;padding:14px;border-radius:12px;background:#fff;border:1px solid #e4e4e7;display:flex;flex-direction:column;gap:8px;">
+      <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Live now</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${live?esc(live.name):"—"}</div></div>
+      <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Selected</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${selGame?esc(selGame.name):"—"}</div></div></div>
+  </aside>`;
+}
+function adminGo(v){adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
+function drawAdmin(){
+  let main="";
+  if(adminView==="games")main=viewGames();
+  else if(adminView==="wizard")main=viewWizard();
+  else if(adminView==="themes")main=viewThemes();
+  else if(adminView==="monitor")main=viewMonitor();
+  $("admin").innerHTML=`<div style="max-width:1280px;margin:0 auto;padding:26px 22px 90px;display:grid;grid-template-columns:210px 1fr;gap:22px;align-items:start;">${sideMenu()}<main style="display:flex;flex-direction:column;gap:18px;min-width:0;">${main}</main></div>`;
+  if(adminView==="monitor")startMon();
+}
+const dot={draft:["#a1a1aa","Draft"],ready:["#2563eb","Ready"],live:["#15803d","Live"],ended:["#b91c1c","Ended"]};
+// ---- Games ----
+function viewGames(){
+  const cards=adminData.games.map(g=>{const d=dot[g.status]||dot.draft;const sel=selGame&&selGame.id===g.id;
+    return `<button onclick="selectGame('${g.id}')" style="border:1px solid ${sel?"#18181b":"#e4e4e7"};cursor:pointer;text-align:left;background:#fff;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:7px;box-shadow:${sel?"0 1px 3px rgba(0,0,0,.08)":"none"};">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">${esc(g.name)}</span>
+      <span style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${d[0]};white-space:nowrap;">● ${d[1]}</span></div>
+      <span style="font-size:12.5px;color:#71717a;min-height:32px;line-height:1.45;">${esc(g.description||"")}</span>
+      <span style="font-size:11px;color:#a1a1aa;">PIN ${g.pin} · ${g.question_count} questions · ${g.team_count} teams</span></button>`;}).join("");
+  return `<section style="display:flex;flex-direction:column;gap:18px;">
+    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:22px;color:#18181b;letter-spacing:-.01em;">Games</h1>
+        <p style="margin:5px 0 0;font-size:13px;color:#71717a;">One game is live for players at a time. Select a game to manage it.</p></div>
+        <button onclick="newWiz();adminGo('wizard')" style="border:0;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">New game</button></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:18px;">${cards}</div></div>
+    ${selGame?selectedDetail():""}</section>`;
+}
+async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
+function selectedDetail(){
+  const g=selGame,d=dot[g.status]||dot.draft;
+  const actions=[];
+  if(g.status!=="live")actions.push(`<button onclick="setStatus('${g.id}','live')" style="border:0;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">Take live</button>`);
+  if(g.status==="live"){actions.push(`<button onclick="adminExtend('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">+15 min</button>`);
+    actions.push(`<button onclick="setStatus('${g.id}','ended')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">End</button>`);}
+  if(g.status==="ended")actions.push(`<button onclick="newRun('${g.id}')" style="border:0;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">New run</button>`);
+  actions.push(`<button onclick="editWiz('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Edit in wizard</button>`);
+  actions.push(`<button onclick="delGame('${g.id}','${esc(g.name).replace(/'/g,"")}')" style="border:1px solid #fecaca;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#dc2626;">Delete</button>`);
+  const q=g.questions.map((x,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(x.title)}</strong>
+    <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(x.answer||"")}</strong></span></div>
+    <div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(x.intro||"")}</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${(x.blocks||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.blocks.length} blocks</span>`:""}${(x.hints||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.hints.length} hints</span>`:""}</div></div>`).join("");
+  return `<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <div><div style="display:flex;align-items:baseline;gap:10px;"><h2 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;color:#18181b;">${esc(g.name)}</h2>
+      <span style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${d[0]};">● ${d[1]}</span></div>
+      <div style="font-size:13px;color:#71717a;margin-top:4px;">${esc(g.description||"")}</div>
+      <div style="font-size:12px;color:#71717a;margin-top:7px;">PIN <strong style="font-family:'Space Grotesk',monospace;">${g.pin}</strong> · ${g.questions.length} questions</div></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">${actions.join("")}</div></div>
+    ${q?`<div style="border-top:1px solid #f0f0f1;padding-top:16px;"><h2 style="margin:0 0 12px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Questions</h2><div style="display:flex;flex-direction:column;gap:9px;">${q}</div></div>`:""}</div>`;
+}
+async function setStatus(id,s){await a("admin_set_status",{p_game:id,p_status:s});toast("Status: "+s);adminData=await a("admin_list");selGame=await a("admin_get_game",{p_game:id});drawAdmin();}
+async function adminExtend(id){await a("admin_extend",{p_game:id,p_minutes:15});toast("Extended 15 min");}
+async function newRun(id){if(!confirm("New run wipes teams. Continue?"))return;await a("admin_new_run",{p_game:id});toast("New run started");setStatus(id,"live");}
+async function delGame(id,n){if(!confirm('Delete "'+n+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
+
+// ---- Wizard ----
+function blankQ(){return{title:"",answer:"",intro:"",blocks:[],hints:[]};}
+function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
+async function editWiz(id){const g=await a("admin_get_game",{p_game:id});wiz={id:g.id,name:g.name||"",description:g.description||"",duration_min:g.duration_min,max_teams:g.max_teams,theme_id:g.theme_id||adminData.themes[0]?.id||"",
+  questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),hints:(q.hints||[]).map(h=>({reveal_after_min:h.reveal_after_min,text:h.text||"",media_type:h.media_type||"",media_url:h.media_url||""}))})),sel:0,wbType:"text",wbContent:""};
+  wizStep=2;adminGo("wizard");}
+const setW=(f,v)=>{wiz[f]=v;};
+function viewWizard(){
+  const steps=[["01","Basics"],["02","Questions"],["03","Theme"],["04","Review"]];
+  const stepBtns=steps.map((s,i)=>{const n=i+1,on=wizStep===n;return `<button onclick="wizStep=${n};drawAdmin()" style="border:1px solid ${on?"#18181b":"#e4e4e7"};cursor:pointer;display:flex;align-items:center;gap:8px;padding:8px 15px;border-radius:9px;font-weight:600;font-size:12px;background:${on?"#18181b":"#fff"};color:${on?"#fff":"#52525b"};"><span style="font-family:'Space Grotesk',monospace;font-size:11px;color:${on?"#a1a1aa":"#a1a1aa"};">${s[0]}</span> ${s[1]}</button>`;}).join("");
+  let body="";
+  if(wizStep===1)body=wizStep1();
+  else if(wizStep===2)body=wizStep2();
+  else if(wizStep===3)body=wizStep3();
+  else body=wizStep4();
+  return `<section style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">${wiz.id?"Edit game":"New game"}</h1>
+      <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Basics → Questions &amp; hints → Theme → Review.</p></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;"><button onclick="downloadTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">CSV template</button>
+      <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import CSV<input type="file" accept=".csv" onchange="importCsv(event)" style="display:none;"></label></div></div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;">${stepBtns}</div>${body}
+    <div style="display:flex;justify-content:space-between;border-top:1px solid #f0f0f1;padding-top:14px;">
+      <button onclick="wizStep=Math.max(1,wizStep-1);drawAdmin()" style="border:1px solid #e4e4e7;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Back</button>
+      <button onclick="wizStep=Math.min(4,wizStep+1);drawAdmin()" style="border:0;cursor:pointer;padding:10px 24px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Next</button></div></section>`;
+}
+function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:12px;max-width:560px;">
+  <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Game name</label>
+  <input value="${esc(wiz.name)}" oninput="setW('name',this.value)" placeholder="e.g. Harbor Heist" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:15px;color:#18181b;"></div>
+  <div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Description / story intro</label>
+  <textarea oninput="setW('description',this.value)" placeholder="A short story to set the mood…" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;min-height:84px;resize:vertical;color:#18181b;">${esc(wiz.description)}</textarea></div>
+  <div style="display:flex;gap:10px;"><div style="flex:1;display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Duration (min)</label><input type="number" value="${wiz.duration_min}" oninput="setW('duration_min',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div>
+  <div style="flex:1;display:flex;flex-direction:column;gap:5px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Max teams</label><input type="number" value="${wiz.max_teams}" oninput="setW('max_teams',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div></div></div>`;}
+function wizStep2(){
+  const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
+    <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
+    <div style="font-size:11px;color:#a1a1aa;">${q.blocks.length} blocks · ${q.hints.length} hints</div></button>
+    <button onclick="moveQ(${i},-1)" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 4px;">↑</button>
+    <button onclick="delWQ(${i})" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 4px;">✕</button></div>`;}).join("");
+  const q=wiz.questions[wiz.sel];
+  const editor=q?wqEditor(q):`<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">Select or add a question.</div>`;
+  return `<div style="display:grid;grid-template-columns:minmax(210px,300px) 1fr;gap:18px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
+    <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
+    ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import a CSV.</div>'}</div>${editor}</div>`;
+}
+function wqEditor(q){
+  const blocks=q.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
+    <span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
+    <span style="flex:1;font-size:12.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
+    <button onclick="delWBlock(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
+  const hints=q.hints.map((h,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
+    <span style="font-size:11px;color:#71717a;white-space:nowrap;">after</span><input type="number" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value" style="width:56px;padding:5px 7px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;"><span style="font-size:11px;color:#71717a;">min</span>
+    <input value="${esc(h.text)}" oninput="wiz.questions[wiz.sel].hints[${i}].text=this.value" placeholder="hint text" style="flex:1;min-width:0;padding:5px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12px;">
+    <button onclick="delWHint(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
+  return `<div style="display:flex;flex-direction:column;gap:12px;border:1px solid #f0f0f1;border-radius:12px;padding:18px;background:#fafafa;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
+      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Correct answer</label><input value="${esc(q.answer)}" oninput="wiz.questions[wiz.sel].answer=this.value" placeholder="case-insensitive" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div></div>
+    <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label><input value="${esc(q.intro)}" oninput="wiz.questions[wiz.sel].intro=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
+    <div style="display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Content blocks — text, image, video, audio, link</label>${blocks}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;"><select onchange="wiz.wbType=this.value" style="padding:9px 10px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;background:#fff;">
+        <option value="text">Text</option><option value="image">Image URL</option><option value="video">Video URL</option><option value="audio">Audio URL</option><option value="url">Link</option></select>
+        <input id="wbc" oninput="wiz.wbContent=this.value" placeholder="Content or URL" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;">
+        <button onclick="addWBlock()" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Add block</button></div></div>
+    <div style="border-top:1px solid #ececee;padding-top:12px;display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Hints — unlock over time</label>${hints}
+      <button onclick="addWHint()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;align-self:flex-start;">Add hint</button></div></div>`;
+}
+function addWQ(){wiz.questions.push(blankQ());wiz.sel=wiz.questions.length-1;drawAdmin();}
+function delWQ(i){wiz.questions.splice(i,1);wiz.sel=Math.max(0,wiz.sel-(i<=wiz.sel?1:0));drawAdmin();}
+function moveQ(i,d){const n=i+d;if(n<0||n>=wiz.questions.length)return;const x=wiz.questions;[x[i],x[n]]=[x[n],x[i]];drawAdmin();}
+function addWBlock(){if(!wiz.wbContent.trim())return;wiz.questions[wiz.sel].blocks.push({type:wiz.wbType,content:wiz.wbContent.trim()});wiz.wbContent="";drawAdmin();}
+function delWBlock(i){wiz.questions[wiz.sel].blocks.splice(i,1);drawAdmin();}
+function addWHint(){wiz.questions[wiz.sel].hints.push({reveal_after_min:0,text:"",media_type:"",media_url:""});drawAdmin();}
+function delWHint(i){wiz.questions[wiz.sel].hints.splice(i,1);drawAdmin();}
+function wizStep3(){
+  const cards=adminData.themes.map(t=>{const tk=t.tokens,on=wiz.theme_id===t.id;
+    return `<button onclick="wiz.theme_id='${t.id}';drawAdmin()" style="border:1.5px solid ${on?"#18181b":"#e4e4e7"};cursor:pointer;border-radius:13px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:8px;text-align:left;">
+      <div style="height:70px;border-radius:${tk.rCard};background:${tk.bg};position:relative;overflow:hidden;">
+        <div style="position:absolute;left:11px;bottom:9px;font-family:${tk.fontDisplay};font-size:15px;color:${tk.primary};font-weight:600;">Aa</div>
+        <div style="position:absolute;right:10px;bottom:10px;width:34px;height:14px;border-radius:${tk.rBtn};background:${tk.primary};"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong>
+        <span style="display:flex;gap:4px;"><span style="width:15px;height:15px;border-radius:5px;background:${tk.primary};"></span><span style="width:15px;height:15px;border-radius:5px;background:${tk.secondary||tk.primary};"></span></span></div>
+      <span style="font-size:11px;color:#a1a1aa;line-height:1.4;">${esc(tk.desc||"")}</span></button>`;}).join("");
+  return `<div><p style="margin:0 0 12px;font-size:12.5px;color:#71717a;">Each preset carries its own palette, typeface and geometry — corners, buttons, frame shape.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;">${cards}</div></div>`;
+}
+function wizStep4(){
+  const th=adminData.themes.find(t=>t.id===wiz.theme_id),tk=th?.tokens||{};
+  const hc=wiz.questions.reduce((n,q)=>n+q.hints.length,0);
+  const qs=wiz.questions.map((q,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(q.title||"Untitled")}</strong>
+    <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(q.answer||"")}</strong></span></div>
+    <div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(q.intro||"")}</div></div>`).join("");
+  return `<div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="border-radius:13px;padding:22px;background:${tk.primary||"#18181b"};color:#fff;">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;opacity:.8;">${esc(th?.name||"")} theme</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:23px;margin-top:4px;">${esc(wiz.name||"Untitled")}</div>
+      <div style="font-size:13px;opacity:.9;margin-top:4px;">${esc(wiz.description||"")}</div>
+      <div style="font-size:12px;opacity:.85;margin-top:8px;">${wiz.questions.length} questions · ${hc} hints</div></div>${qs}
+    <div style="display:flex;gap:9px;flex-wrap:wrap;">
+      <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Save as draft</button>
+      <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#18181b;">Save as ready</button>
+      <button onclick="saveWiz('live')" style="border:0;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Save &amp; go live</button></div></div>`;
+}
+async function saveWiz(status){
+  const payload={id:wiz.id||"",name:wiz.name,description:wiz.description,duration_min:wiz.duration_min,max_teams:wiz.max_teams,theme_id:wiz.theme_id,
+    questions:wiz.questions.map(q=>({title:q.title,intro:q.intro,answer:q.answer,alt_answers:[],
+      blocks:q.blocks.map(b=>b.type==="text"?{type:"text",text:b.content}:{type:b.type==="url"?"link":b.type,url:b.content}),
+      hints:q.hints.map(h=>({reveal_after_min:h.reveal_after_min,text:h.text,media_type:h.media_type||"",media_url:h.media_url||""}))}))};
+  const res=await a("admin_save_game",{p_payload:payload});
+  if(res.error){toast("Error: "+res.error);return;}
+  if(status!=="draft")await a("admin_set_status",{p_game:res.id,p_status:status});
+  toast("Saved · PIN "+res.pin);selGame=null;adminData=await a("admin_list");adminGo("games");
+}
+function downloadTemplate(){const csv="title,intro,answer,block_text,hints\nHarbor clue,A short intro,ANCHOR,Look near the docks.,0:Check the pier;5:It's blue\n";
+  const b=new Blob([csv],{type:"text/csv"});const u=URL.createObjectURL(b);const a2=document.createElement("a");a2.href=u;a2.download="questline-template.csv";a2.click();URL.revokeObjectURL(u);}
+function importCsv(ev){const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{
+  const lines=String(rd.result).split(/\r?\n/).filter(l=>l.trim());const header=lines.shift().split(",").map(s=>s.trim().toLowerCase());const idx=n=>header.indexOf(n);
+  lines.forEach(line=>{const c=parseCsv(line);const q=blankQ();q.title=c[idx("title")]||"";q.intro=c[idx("intro")]||"";q.answer=c[idx("answer")]||"";
+    const bt=idx("block_text")>=0?c[idx("block_text")]:"";if(bt)q.blocks.push({type:"text",content:bt});
+    const hs=idx("hints")>=0?c[idx("hints")]:"";if(hs)hs.split(";").forEach(p=>{const[m,...t]=p.split(":");q.hints.push({reveal_after_min:+m||0,text:t.join(":"),media_type:"",media_url:""});});
+    wiz.questions.push(q);});wiz.sel=wiz.questions.length-1;drawAdmin();toast("Imported "+lines.length+" questions");};rd.readAsText(f);}
+function parseCsv(line){const o=[];let c="",q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===","&&!q){o.push(c);c="";}else c+=ch;}o.push(c);return o.map(s=>s.trim());}
+
+// ---- Themes ----
+function viewThemes(){
+  const cards=adminData.themes.map(t=>{const tk=t.tokens;
+    return `<div style="border:1.5px solid #e4e4e7;border-radius:14px;padding:13px;background:#fff;display:flex;flex-direction:column;gap:9px;text-align:left;">
+      <div style="height:104px;border-radius:${tk.rCard};background:${tk.bg};position:relative;overflow:hidden;">
+        <div style="position:absolute;left:13px;top:12px;font-family:${tk.fontDisplay};font-size:21px;color:${tk.ink};font-weight:600;">Aa</div>
+        <div style="position:absolute;left:13px;bottom:12px;right:13px;display:flex;gap:6px;align-items:center;">
+          <div style="height:20px;flex:1;border-radius:${tk.rBtn};background:${tk.primary};"></div><div style="height:20px;width:34px;border-radius:${tk.rBtn};border:1px solid ${tk.primary};"></div></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:14px;color:#18181b;">${esc(t.name)}</strong>
+        <span style="display:flex;gap:4px;"><span style="width:16px;height:16px;border-radius:5px;background:${tk.primary};"></span><span style="width:16px;height:16px;border-radius:5px;background:${tk.secondary||tk.primary};"></span></span></div>
+      <span style="font-size:11.5px;color:#a1a1aa;line-height:1.45;">${esc(tk.desc||"")}</span></div>`;}).join("");
+  return `<section style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
+    <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Themes</h1>
+    <p style="margin:5px 0 18px;font-size:12.5px;color:#71717a;">Five curated presets. Each changes palette, typeface <em>and geometry</em> — corner radii, button shape, frame. Assign one to a game in the wizard.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;">${cards}</div></section>`;
+}
+// ---- Monitor ----
+let monTimer=null;
+function viewMonitor(){
+  const live=adminData.games.find(g=>g.status==="live");
+  if(!live)return `<section style="display:flex;flex-direction:column;gap:18px;"><div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
+    <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
+    <div style="margin-top:16px;border:1px dashed #e4e4e7;border-radius:12px;padding:30px;text-align:center;color:#a1a1aa;font-size:13px;">No live game. Take one live in the Games panel.</div></div></section>`;
+  return `<section style="display:flex;flex-direction:column;gap:18px;"><div id="monHead"></div><div id="monTeams"></div></section>`;
+}
+function startMon(){if(monTimer)clearInterval(monTimer);const live=adminData.games.find(g=>g.status==="live");if(!live)return;pollMon(live.id);monTimer=setInterval(()=>pollMon(live.id),3000);}
+async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}catch{return;}if(m.error)return;
+  const live=adminData.games.find(g=>g.id===id)||{};
+  const now=Date.parse(m.server_now),exp=m.expires_at?Math.max(0,(Date.parse(m.expires_at)-now)/1000):null;
+  const done=m.teams.filter(t=>t.finished_at).length;
+  const stats=[["Teams",m.teams.length],["Questions",m.total_questions],["Finished",done],["Time left",exp!=null?fmt(exp):"—"]];
+  const head=$("monHead");if(head)head.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
+      <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Watching "${esc(live.name||"")}" — PIN ${live.pin||""}</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="adminExtend('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">+15 min</button>
+      <button onclick="newRun('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#18181b;color:#fff;">New run</button></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px;">${stats.map(s=>`<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${s[0]}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${s[1]}</div></div>`).join("")}</div></div>`;
+  const tv=$("monTeams");if(tv)tv.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
+    <h2 style="margin:0 0 14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#18181b;">Team progress</h2><div style="display:flex;flex-direction:column;gap:9px;">
+    ${m.teams.length?m.teams.map(t=>{const fin=!!t.finished_at;const pct=fin?100:Math.round(((t.stage_ord||1)-1)/m.total_questions*100);const c=fin?"#15803d":"#6366f1";
+      return `<div style="border:1px solid #f0f0f1;border-radius:11px;padding:13px 16px;background:#fafafa;display:flex;flex-direction:column;gap:9px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:baseline;gap:9px;"><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
+        <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
+          <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
+          <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
+      <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div></div>`;}).join("")
+    :'<div style="border:1px dashed #e4e4e7;border-radius:12px;padding:24px;text-align:center;color:#a1a1aa;font-size:13px;">No teams yet. Join from the Player view.</div>'}</div></div>`;
+}
+async function resetTeam(id){if(!confirm("Reset this team to the start?"))return;await a("admin_reset_team",{p_team:id});toast("Reset");}
+
 // boot
-if(getToken()) loadState(); else show("pin");
+setRole("player");
+renderPlayer();
+if(pToken())pRefresh();
 </script>
 </body>
 </html>
