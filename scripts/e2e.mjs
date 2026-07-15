@@ -87,7 +87,11 @@ async function main() {
   const disc = await A("admin_discard_task", { p_game: GID, p_ord: 2, p_reason: "bad clue" });
   ok("discard ok", disc.ok === true);
   const notices = await rpc("get_notices", { p_session: A1 });
-  ok("player gets discard notice", Array.isArray(notices) && notices.some(n => /removed by the host/.test(n.message) && /bad clue/.test(n.message)), JSON.stringify(notices));
+  ok("player gets discard notice (number + name + reason + time note)",
+     Array.isArray(notices) && notices.some(n =>
+       /Question 2 "Q2-discard" was cancelled by the host/.test(n.message)
+       && /Reason: bad clue/.test(n.message)
+       && /deducted from your total/.test(n.message)), JSON.stringify(notices));
   s = await rpc("get_state", { p_session: A1 });
   ok("Alpha moved to Q3 after discard", s.question.title === "Q3-cs");
 
