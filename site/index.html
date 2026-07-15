@@ -77,7 +77,8 @@ async function rpc(fn,args){const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{metho
   headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
   if(!r.ok)throw new Error("http "+r.status);return await r.json();}
 let CODE=sessionStorage.getItem("admin_code")||"";
-const a=(fn,args={})=>rpc(fn,{p_code:CODE,...args});
+let adminOffset=0;   // server clock − client clock (from admin_list.server_now)
+const a=(fn,args={})=>rpc(fn,{p_code:CODE,...args}).then(r=>{if(r&&r.server_now)adminOffset=Date.parse(r.server_now)-Date.now();return r;});
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function safeUrl(u){try{const p=new URL(u,location.origin).protocol;return(p==="http:"||p==="https:")?u:"#";}catch{return"#";}}
 function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
@@ -356,6 +357,19 @@ setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished)return;
   let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due)pRefresh();},1000);
 setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();pNotices();}},10000);
 
+// admin side-menu live timer: counts down to scheduled start, then counts elapsed
+function adminTimerText(){
+  if(!adminData||!adminData.games)return'<span style="color:#a1a1aa;">—</span>';
+  const g=adminData.games.find(x=>x.status==="live");
+  if(!g)return'<span style="color:#a1a1aa;">—</span>';
+  if(g.paused_at)return'<span style="color:#b45309;">Paused</span>';
+  if(!g.starts_at)return'<span style="color:#a1a1aa;">Not started</span>';
+  const t=Date.parse(g.starts_at),now=Date.now()+adminOffset;
+  return now<t?'<span style="color:#4f46e5;">starts in '+fmt((t-now)/1000)+'</span>'
+             :'<span style="color:#15803d;">'+fmt((now-t)/1000)+'</span>';
+}
+setInterval(()=>{if(role!=="admin")return;const el=document.getElementById("adminTimer");if(el)el.innerHTML=adminTimerText();},1000);
+
 // ===================== ADMIN =====================
 let adminData=null,adminView="games",selGame=null,wiz=null,wizStep=1;
 async function renderAdmin(){
@@ -393,7 +407,7 @@ function sideMenu(){
     <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:#a1a1aa;padding:4px 12px 8px;">Manage</div>
     ${items.map(([k,l])=>`<button onclick="adminGo('${k}')" style="border:0;cursor:pointer;text-align:left;padding:10px 12px;border-radius:9px;font-weight:${adminView===k?600:500};font-size:13.5px;background:${adminView===k?"#18181b":"transparent"};color:${adminView===k?"#fff":"#52525b"};">${l}</button>`).join("")}
     <div style="margin-top:16px;padding:14px;border-radius:12px;background:#fff;border:1px solid #e4e4e7;display:flex;flex-direction:column;gap:8px;">
-      <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Live now</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${live?esc(live.name):"—"}</div></div>
+      <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Live now</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${live?esc(live.name):"—"}</div><div id="adminTimer" style="font-family:'Space Grotesk',ui-monospace,monospace;font-weight:600;font-size:15px;margin-top:3px;">${adminTimerText()}</div></div>
       <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Selected</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${selGame?esc(selGame.name):"—"}</div></div></div>
   </aside>`;
 }
