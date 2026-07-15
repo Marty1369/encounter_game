@@ -106,7 +106,7 @@ async function pJoin(team){
   try{const res=await rpc("join_game",{p_pin:pState.pin,p_team:t,p_name:pState.name});
     if(res.error){toast(joinErr(res.error));return;}
     localStorage.setItem("q_token",res.session_token);localStorage.setItem("q_pin",pState.pin.toUpperCase());
-    applyState(res.state);pState.screen="game";renderPlayer();
+    applyState(res.state);pState.myTeam=t;pState.screen="lobby";renderPlayer();
   }catch{toast("Could not join.");}
 }
 function joinErr(e){return{bad_team:"Bad team name.",bad_name:"Enter your name.",not_found:"Game not found.",not_live:"Game hasn't started.",expired:"Game has ended.",full:"Team limit reached."}[e]||"Error.";}
@@ -137,8 +137,34 @@ function renderPlayer(){
     if(pGameState.finished)return pDone();
     return pGame();
   }
+  if(s.screen==="lobby"&&pGameState)return pLobby();
   if(s.screen==="teams")return pTeams();
   return pJoinScreen();
+}
+// ---- Lobby ----
+function pLobby(){
+  const st=pGameState,g=pState.active||{};
+  const exp=st.expires_at?Math.max(0,(Date.parse(st.expires_at)-serverNow())/1000):null;
+  const others=(g.teams||[]).map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;border-radius:var(--th-rInput);background:var(--th-field);border:1px solid var(--th-line);">
+    <span style="font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(t.name)}</span><span style="font-size:11.5px;color:var(--th-muted);">${t.players} ${t.players===1?"member":"members"}</span></div>`).join("");
+  $("pscreen").innerHTML=`<div style="padding:30px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
+    <div><div style="font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--th-muted);">You are in</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:27px;margin-top:3px;letter-spacing:var(--th-displayTracking);">${esc(st.team.name)}</div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:17px;">${esc(pState.myTeam||st.team.name)}</div>
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;padding:4px 11px;border-radius:var(--th-rBtn);border:1px solid var(--th-line);color:var(--th-inkSoft);font-family:'Space Grotesk',monospace;">${esc(localStorage.getItem("q_pin"))}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:var(--th-rBtn);background:var(--th-field);border:1px solid var(--th-line);color:var(--th-ink);">${esc(pState.name)}</span></div>
+      <div style="font-size:11.5px;color:var(--th-muted);">Share the game PIN so teammates can join your team.</div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:22px;text-align:center;">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);">Game in progress</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:48px;font-variant-numeric:tabular-nums;color:var(--th-primary);margin-top:6px;letter-spacing:.01em;">${exp!=null?fmt(exp):"—"}</div>
+      <div style="font-size:12px;color:var(--th-inkSoft);margin-top:4px;">time remaining</div></div>
+    <button onclick="pState.screen='game';renderPlayer()" style="border:0;cursor:pointer;padding:15px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15.5px;background:var(--th-primary);color:var(--th-onPrimary);">Enter the game</button>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">In the lobby</div>
+      <span style="font-size:11px;color:var(--th-muted);letter-spacing:.06em;text-transform:uppercase;">${(g.teams||[]).length} teams</span></div>
+      <div style="display:flex;flex-direction:column;gap:7px;">${others||'<div style="font-size:12.5px;color:var(--th-muted);">Just your team so far.</div>'}</div></div></div>`;
 }
 // ---- Join ----
 function pJoinScreen(){
@@ -217,7 +243,7 @@ function pGame(){
       <div><div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--th-muted);">${esc(st.team.name)}</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:13px;margin-top:4px;color:var(--th-inkSoft);letter-spacing:.04em;">Challenge ${q.ord} of ${st.total_questions}</div></div>
       <div id="pElapsed" style="font-family:'Space Grotesk',monospace;font-weight:600;font-size:14px;color:var(--th-primary);white-space:nowrap;font-variant-numeric:tabular-nums;"></div></div>
-    <div style="height:3px;border-radius:999px;background:var(--th-line);overflow:hidden;"><div style="height:100%;background:var(--th-primary);transition:width .4s ease;width:${q.ord/st.total_questions*100}%;"></div></div>
+    <div style="height:3px;border-radius:999px;background:var(--th-line);overflow:hidden;"><div style="height:100%;background:var(--th-primary);transition:width .4s ease;width:${(q.ord-1)/st.total_questions*100}%;"></div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:12px;">
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;line-height:1.2;letter-spacing:var(--th-displayTracking);">${esc(q.title)}</div>
       ${q.intro?`<div style="font-size:13px;color:var(--th-inkSoft);font-style:italic;margin-top:-4px;">${esc(q.intro)}</div>`:""}
@@ -239,11 +265,12 @@ async function pDone(){
   const rows=board.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--th-line);${r.name===st.team.name?'background:var(--th-field);':''}">
     <span style="width:22px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;color:var(--th-primary);">${i+1}</span>
     <span style="flex:1;font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(r.name)}</span>
+    <span style="font-size:11.5px;color:var(--th-muted);white-space:nowrap;">${st.total_questions} solved</span>
     <span style="font-size:12.5px;font-weight:600;color:var(--th-ink);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt(r.total_seconds)}</span></div>`).join("");
   $("pscreen").innerHTML=`<div style="padding:36px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .3s ease;">
-    <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">${esc(st.team.name)}</div>
-      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">Quest complete</div>
-      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">All challenges solved.</div></div>
+    <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">Quest complete</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">All challenges solved.</div>
+      <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">Well played, ${esc(st.team.name)}.</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Final rank</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;">${myRank}</div></div>
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div></div>
@@ -277,7 +304,7 @@ function adminLogin(){
 async function adminAuth(){CODE=$("acode").value;try{const r=await a("admin_list");if(r.error){$("acodeErr").textContent="Wrong passcode.";CODE="";return;}sessionStorage.setItem("admin_code",CODE);adminData=r;drawAdmin();}catch{$("acodeErr").textContent="Error.";}}
 
 function sideMenu(){
-  const items=[["games","Games"],["wizard","Wizard"],["themes","Themes"],["monitor","Live monitor"]];
+  const items=[["games","Games"],["wizard","Create game"],["monitor","Live monitor"],["themes","Themes"]];
   const live=adminData.games.find(g=>g.status==="live");
   return `<aside style="position:sticky;top:78px;display:flex;flex-direction:column;gap:2px;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:#a1a1aa;padding:4px 12px 8px;">Manage</div>
@@ -361,7 +388,7 @@ function viewWizard(){
   else body=wizStep4();
   return `<section style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-      <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">${wiz.id?"Edit game":"New game"}</h1>
+      <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">${wiz.id?"Edit game":"Create a game"}</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Basics → Questions &amp; hints → Theme → Review.</p></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;"><button onclick="downloadTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">CSV template</button>
       <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import CSV<input type="file" accept=".csv" onchange="importCsv(event)" style="display:none;"></label></div></div>
@@ -470,19 +497,22 @@ function importCsv(ev){const f=ev.target.files[0];if(!f)return;const rd=new File
 function parseCsv(line){const o=[];let c="",q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===","&&!q){o.push(c);c="";}else c+=ch;}o.push(c);return o.map(s=>s.trim());}
 
 // ---- Themes ----
+function previewTheme(id){const t=adminData.themes.find(x=>x.id===id);if(!t)return;applyTheme(t.tokens);setRole("player");toast("Previewing "+t.name+" in Player view");}
 function viewThemes(){
-  const cards=adminData.themes.map(t=>{const tk=t.tokens;
-    return `<div style="border:1.5px solid #e4e4e7;border-radius:14px;padding:13px;background:#fff;display:flex;flex-direction:column;gap:9px;text-align:left;">
+  const usedBy={};adminData.games.forEach(g=>{if(g.theme_id)(usedBy[g.theme_id]=usedBy[g.theme_id]||[]).push(g.name);});
+  const cards=adminData.themes.map(t=>{const tk=t.tokens;const used=usedBy[t.id];
+    return `<button onclick="previewTheme('${t.id}')" style="border:1.5px solid #e4e4e7;cursor:pointer;border-radius:14px;padding:13px;background:#fff;display:flex;flex-direction:column;gap:9px;text-align:left;">
       <div style="height:104px;border-radius:${tk.rCard};background:${tk.bg};position:relative;overflow:hidden;">
         <div style="position:absolute;left:13px;top:12px;font-family:${tk.fontDisplay};font-size:21px;color:${tk.ink};font-weight:600;">Aa</div>
         <div style="position:absolute;left:13px;bottom:12px;right:13px;display:flex;gap:6px;align-items:center;">
           <div style="height:20px;flex:1;border-radius:${tk.rBtn};background:${tk.primary};"></div><div style="height:20px;width:34px;border-radius:${tk.rBtn};border:1px solid ${tk.primary};"></div></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:14px;color:#18181b;">${esc(t.name)}</strong>
         <span style="display:flex;gap:4px;"><span style="width:16px;height:16px;border-radius:5px;background:${tk.primary};"></span><span style="width:16px;height:16px;border-radius:5px;background:${tk.secondary||tk.primary};"></span></span></div>
-      <span style="font-size:11.5px;color:#a1a1aa;line-height:1.45;">${esc(tk.desc||"")}</span></div>`;}).join("");
+      <span style="font-size:11.5px;color:#a1a1aa;line-height:1.45;">${esc(tk.desc||"")}</span>
+      <span style="font-size:11px;font-weight:600;color:${used?"#15803d":"#a1a1aa"};">${used?"Used by "+used.join(", "):"Not in use"}</span></button>`;}).join("");
   return `<section style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Themes</h1>
-    <p style="margin:5px 0 18px;font-size:12.5px;color:#71717a;">Five curated presets. Each changes palette, typeface <em>and geometry</em> — corner radii, button shape, frame. Assign one to a game in the wizard.</p>
+    <p style="margin:5px 0 18px;font-size:12.5px;color:#71717a;">Five curated presets. Each changes palette, typeface <em>and geometry</em> — corner radii, button shape, frame. Click one to preview it in the Player view.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;">${cards}</div></section>`;
 }
 // ---- Monitor ----
