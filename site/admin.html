@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Riddle platforma · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#fafafa;--card:#fff;--fg:#18181b;--soft:#52525b;--muted:#71717a;--faint:#a1a1aa;--border:#e4e4e7;
+    --primary:#4f46e5;--primary-fg:#fff;--field:#f4f4f5;--ok:#16a34a;--err:#dc2626;--warn:#d97706;
+    --serif:'Instrument Serif',serif;--sans:'Space Grotesk',-apple-system,sans-serif}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 18px}
+  h1,h2{font-family:var(--serif);font-weight:400;margin:0}
+  h1{font-size:1.8rem}h2{font-size:1.3rem}
+  .muted{color:var(--muted)}.faint{color:var(--faint)}
+  a{color:var(--primary)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+  .btn{appearance:none;border:0;border-radius:10px;background:var(--primary);color:var(--primary-fg);font-family:var(--sans);font-size:.95rem;font-weight:600;padding:9px 14px;cursor:pointer}
+  .btn:disabled{opacity:.5}
+  .btn.sec{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+  .btn.sm{padding:6px 10px;font-size:.85rem}
+  .btn.danger{background:#fef2f2;color:var(--err);border:1px solid #fecaca}
+  .btn.ok{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0}
+  .input,select,textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--sans);font-size:.95rem;background:var(--card);color:var(--fg);outline:none}
+  .input:focus,select:focus,textarea:focus{border-color:var(--primary)}
+  label{font-weight:600;font-size:.82rem;display:block;margin:8px 0 4px}
+  .hidden{display:none!important}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grow{flex:1;min-width:120px}
+  header{background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+  .hbar{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+  .tabs{display:flex;gap:6px}
+  .tab{padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-weight:600;cursor:pointer;color:var(--muted);font-size:.9rem}
+  .tab.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+  .badge{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px}
+  .b-draft{background:#f4f4f5;color:#52525b}.b-ready{background:#eff6ff;color:#2563eb}
+  .b-live{background:#f0fdf4;color:#15803d}.b-ended{background:#fef2f2;color:#b91c1c}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);font-size:.9rem}
+  th{color:var(--muted);font-weight:600}
+  .swatch{width:20px;height:20px;border-radius:5px;border:1px solid var(--border);display:inline-block;vertical-align:middle}
+  .qcard{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--bg)}
+  .sub{border:1px dashed var(--border);border-radius:9px;padding:8px;margin:6px 0;background:var(--card)}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;opacity:0;transition:opacity .2s;z-index:50}
+  .toast.show{opacity:1}
+  .colorrow{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:center;margin-bottom:6px}
+  .colorrow input[type=color]{height:34px;padding:2px;border-radius:8px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="wrap" style="max-width:380px;margin-top:14vh">
+  <h1 style="text-align:center">Admin</h1>
+  <p class="muted" style="text-align:center;margin-top:6px">Riddle platforma</p>
+  <div class="card" style="margin-top:16px">
+    <label>Slaptažodis</label>
+    <input id="code" class="input" type="password" autocomplete="off" />
+    <button id="loginBtn" class="btn" style="width:100%;margin-top:12px">Prisijungti</button>
+    <div id="loginErr" class="muted" style="color:var(--err);margin-top:8px;font-size:.85rem"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header><div class="wrap hbar">
+    <div class="row"><strong>Riddle platforma</strong>
+      <div class="tabs" style="margin-left:8px">
+        <div class="tab on" data-view="games" onclick="go('games')">Žaidimai</div>
+        <div class="tab" data-view="themes" onclick="go('themes')">Temos</div>
+        <div class="tab" data-view="monitor" onclick="go('monitor')">Monitorius</div>
+      </div>
+    </div>
+    <button class="btn sec sm" onclick="logout()">Atsijungti</button>
+  </div></header>
+  <div class="wrap" style="padding:16px 18px 60px" id="views"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const SB_URL="https://shgbvoxbwmhhridiihxn.supabase.co";
+const ANON="sb_publishable_S_K9CFTHDQRlLQOg9KPclA_wtJyavJr";
+const $=id=>document.getElementById(id);
+let CODE=sessionStorage.getItem("admin_code")||"";
+let data={games:[],themes:[]}, editing=null, monGame=null, monTimer=null;
+
+async function rpc(fn,args){
+  const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",
+    headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+  if(!r.ok) throw new Error("http "+r.status); return await r.json();
+}
+const a=(fn,args={})=>rpc(fn,{p_code:CODE,...args});
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function statusBadge(s){const m={draft:["b-draft","Juodraštis"],ready:["b-ready","Paruošta"],live:["b-live","Gyvai"],ended:["b-ended","Baigta"]}[s]||["b-draft",s];return '<span class="badge '+m[0]+'">'+m[1]+'</span>';}
+function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
+
+// ---- auth ----
+async function login(){
+  CODE=$("code").value; const err=$("loginErr"); err.textContent="";
+  try{ const res=await a("admin_list"); if(res.error){err.textContent="Neteisingas slaptažodis.";return;}
+    sessionStorage.setItem("admin_code",CODE); data=res; $("login").classList.add("hidden"); $("app").classList.remove("hidden"); go("games");
+  }catch(e){err.textContent="Klaida jungiantis.";}
+}
+function logout(){sessionStorage.removeItem("admin_code");CODE="";location.reload();}
+async function refresh(){data=await a("admin_list");}
+
+// ---- nav ----
+let view="games";
+function go(v){view=v;editing=null;if(monTimer){clearInterval(monTimer);monTimer=null;}
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.view===v));
+  if(v==="games")renderGames(); else if(v==="themes")renderThemes(); else if(v==="monitor")renderMonitor();
+}
+
+// ================= GAMES =================
+async function renderGames(){
+  await refresh();
+  let h='<div class="row" style="justify-content:space-between"><h1>Žaidimai</h1><button class="btn" onclick="newGame()">+ Naujas žaidimas</button></div>';
+  if(!data.games.length) h+='<p class="muted" style="margin-top:14px">Dar nėra žaidimų. Sukurkite pirmą.</p>';
+  for(const g of data.games){
+    h+='<div class="card"><div class="row" style="justify-content:space-between">'+
+      '<div><div class="row"><strong style="font-size:1.05rem">'+esc(g.name)+'</strong>'+statusBadge(g.status)+'</div>'+
+      '<div class="muted" style="font-size:.85rem;margin-top:3px">PIN <strong>'+g.pin+'</strong> · '+g.question_count+' užd. · '+g.team_count+' komandų'+(g.theme_name?' · '+esc(g.theme_name):'')+'</div></div>'+
+      '<div class="row">'+
+        '<button class="btn sec sm" onclick="editGame(\''+g.id+'\')">Redaguoti</button>'+
+        statusButtons(g)+
+        '<button class="btn sec sm" onclick="go(\'monitor\');setTimeout(()=>selectMon(\''+g.id+'\'),50)">Monitorius</button>'+
+        '<button class="btn danger sm" onclick="delGame(\''+g.id+'\',\''+esc(g.name)+'\')">Trinti</button>'+
+      '</div></div></div>';
+  }
+  $("views").innerHTML=h;
+}
+function statusButtons(g){
+  if(g.status==="live") return '<button class="btn sm" onclick="extend(\''+g.id+'\')">+15 min</button><button class="btn danger sm" onclick="setStatus(\''+g.id+'\',\'ended\')">Baigti</button>';
+  if(g.status==="ended") return '<button class="btn ok sm" onclick="newRun(\''+g.id+'\')">Naujas turas</button>';
+  return '<button class="btn ok sm" onclick="setStatus(\''+g.id+'\',\'live\')">Paleisti</button>';
+}
+async function setStatus(id,s){await a("admin_set_status",{p_game:id,p_status:s});toast("Statusas: "+s);renderGames();}
+async function extend(id){await a("admin_extend",{p_game:id,p_minutes:15});toast("Pratęsta 15 min");}
+async function newRun(id){if(!confirm("Naujas turas ištrins komandas. Tęsti?"))return;await a("admin_new_run",{p_game:id});toast("Naujas turas paleistas");renderGames();}
+async function delGame(id,name){if(!confirm("Ištrinti žaidimą \""+name+"\"?"))return;await a("admin_delete_game",{p_game:id});toast("Ištrinta");renderGames();}
+
+// ================= EDITOR (Wizard) =================
+function blankQ(){return{title:"",intro:"",answer:"",location_name:"",lat:"",lng:"",blocks:[],hints:[]};}
+function newGame(){editing={name:"",description:"",duration_min:240,max_teams:20,theme_id:data.themes[0]?.id||"",questions:[blankQ()]};renderEditor();}
+async function editGame(id){const g=await a("admin_get_game",{p_game:id});if(g.error){toast("Klaida");return;}
+  editing={id:g.id,pin:g.pin,status:g.status,name:g.name||"",description:g.description||"",duration_min:g.duration_min,max_teams:g.max_teams,theme_id:g.theme_id||"",
+    questions:(g.questions||[]).map(q=>({title:q.title||"",intro:q.intro||"",answer:q.answer||"",location_name:q.location_name||"",lat:q.lat??"",lng:q.lng??"",
+      blocks:q.blocks||[],hints:(q.hints||[]).map(h=>({reveal_after_min:h.reveal_after_min,text:h.text||"",media_type:h.media_type||"",media_url:h.media_url||""}))}))};
+  renderEditor();
+}
+// setters
+const setMeta=(f,v)=>editing[f]=v;
+const setQ=(qi,f,v)=>editing.questions[qi][f]=v;
+const setBlock=(qi,bi,f,v)=>editing.questions[qi].blocks[bi][f]=v;
+const setHint=(qi,hi,f,v)=>editing.questions[qi].hints[hi][f]=v;
+function addQ(){editing.questions.push(blankQ());renderEditor();}
+function delQ(qi){editing.questions.splice(qi,1);renderEditor();}
+function moveQ(qi,d){const n=qi+d;if(n<0||n>=editing.questions.length)return;const x=editing.questions;[x[qi],x[n]]=[x[n],x[qi]];renderEditor();}
+function addBlock(qi,t){editing.questions[qi].blocks.push(t==="text"?{type:"text",text:""}:{type:t,url:""});renderEditor();}
+function delBlock(qi,bi){editing.questions[qi].blocks.splice(bi,1);renderEditor();}
+function addHint(qi){editing.questions[qi].hints.push({reveal_after_min:0,text:"",media_type:"",media_url:""});renderEditor();}
+function delHint(qi,hi){editing.questions[qi].hints.splice(hi,1);renderEditor();}
+
+function renderEditor(){
+  const e=editing;
+  const themeOpts=data.themes.map(t=>'<option value="'+t.id+'"'+(t.id===e.theme_id?' selected':'')+'>'+esc(t.name)+'</option>').join("");
+  let h='<div class="row" style="justify-content:space-between"><h1>'+(e.id?"Redaguoti žaidimą":"Naujas žaidimas")+'</h1>'+
+    '<button class="btn sec" onclick="go(\'games\')">← Atgal</button></div>';
+  if(e.status==="live") h+='<div class="card" style="border-color:#fde68a;background:#fffbeb;color:#92400e">Žaidimas paleistas — turinio keisti negalima. Baikite žaidimą, kad redaguotumėte.</div>';
+  h+='<div class="card">'+
+    '<label>Pavadinimas</label><input class="input" value="'+esc(e.name)+'" oninput="setMeta(\'name\',this.value)">'+
+    '<label>Aprašymas / įžanga</label><textarea rows="2" oninput="setMeta(\'description\',this.value)">'+esc(e.description)+'</textarea>'+
+    '<div class="row"><div class="grow"><label>Trukmė (min)</label><input class="input" type="number" value="'+e.duration_min+'" oninput="setMeta(\'duration_min\',+this.value)"></div>'+
+    '<div class="grow"><label>Maks. komandų</label><input class="input" type="number" value="'+e.max_teams+'" oninput="setMeta(\'max_teams\',+this.value)"></div>'+
+    '<div class="grow"><label>Tema</label><select onchange="setMeta(\'theme_id\',this.value)">'+themeOpts+'</select></div></div>'+
+    '</div>';
+  h+='<div class="row" style="justify-content:space-between;margin:6px 0"><h2>Užduotys ('+e.questions.length+')</h2>'+
+    '<div class="row"><button class="btn sec sm" onclick="importCsv()">Importuoti CSV</button><button class="btn sm" onclick="addQ()">+ Užduotis</button></div></div>';
+  e.questions.forEach((q,qi)=>{ h+=renderQ(q,qi); });
+  h+='<div class="card" style="position:sticky;bottom:0"><div class="row" style="justify-content:flex-end">'+
+    '<button class="btn sec" onclick="saveGame(false)">Išsaugoti juodraštį</button>'+
+    '<button class="btn ok" onclick="saveGame(\'ready\')">Išsaugoti kaip paruoštą</button>'+
+    (e.status==="live"?"":'<button class="btn" onclick="saveGame(\'live\')">Išsaugoti ir paleisti</button>')+
+    '</div></div>';
+  $("views").innerHTML=h;
+}
+function renderQ(q,qi){
+  let h='<div class="qcard"><div class="row" style="justify-content:space-between"><strong>#'+(qi+1)+'</strong>'+
+    '<div class="row"><button class="btn sec sm" onclick="moveQ('+qi+',-1)">↑</button><button class="btn sec sm" onclick="moveQ('+qi+',1)">↓</button><button class="btn danger sm" onclick="delQ('+qi+')">✕</button></div></div>'+
+    '<label>Pavadinimas</label><input class="input" value="'+esc(q.title)+'" oninput="setQ('+qi+',\'title\',this.value)">'+
+    '<label>Įžanga</label><textarea rows="2" oninput="setQ('+qi+',\'intro\',this.value)">'+esc(q.intro)+'</textarea>'+
+    '<label>Teisingas atsakymas (be FA_)</label><input class="input" value="'+esc(q.answer)+'" oninput="setQ('+qi+',\'answer\',this.value)" placeholder="FA_ATSAKYMAS">'+
+    '<div class="row"><div class="grow"><label>Vieta</label><input class="input" value="'+esc(q.location_name)+'" oninput="setQ('+qi+',\'location_name\',this.value)"></div>'+
+    '<div class="grow"><label>Lat</label><input class="input" value="'+esc(q.lat)+'" oninput="setQ('+qi+',\'lat\',this.value)"></div>'+
+    '<div class="grow"><label>Lng</label><input class="input" value="'+esc(q.lng)+'" oninput="setQ('+qi+',\'lng\',this.value)"></div></div>';
+  // blocks
+  h+='<label>Turinio blokai</label>';
+  q.blocks.forEach((b,bi)=>{ h+='<div class="sub"><div class="row"><span class="muted" style="min-width:52px">'+b.type+'</span>'+
+    (b.type==="text"?'<textarea class="grow" rows="2" oninput="setBlock('+qi+','+bi+',\'text\',this.value)">'+esc(b.text||"")+'</textarea>'
+      :'<input class="input grow" value="'+esc(b.url||"")+'" placeholder="URL" oninput="setBlock('+qi+','+bi+',\'url\',this.value)">')+
+    '<button class="btn danger sm" onclick="delBlock('+qi+','+bi+')">✕</button></div></div>'; });
+  h+='<div class="row" style="margin-top:4px">'+["text","image","video","audio","link"].map(t=>'<button class="btn sec sm" onclick="addBlock('+qi+',\''+t+'\')">+ '+t+'</button>').join("")+'</div>';
+  // hints
+  h+='<label style="margin-top:8px">Užuominos</label>';
+  q.hints.forEach((hh,hi)=>{ h+='<div class="sub"><div class="row"><span class="muted">po</span>'+
+    '<input class="input" style="width:70px" type="number" value="'+hh.reveal_after_min+'" oninput="setHint('+qi+','+hi+',\'reveal_after_min\',+this.value)"><span class="muted">min</span>'+
+    '<button class="btn danger sm" style="margin-left:auto" onclick="delHint('+qi+','+hi+')">✕</button></div>'+
+    '<textarea rows="2" style="margin-top:6px" placeholder="Užuominos tekstas" oninput="setHint('+qi+','+hi+',\'text\',this.value)">'+esc(hh.text||"")+'</textarea>'+
+    '<div class="row" style="margin-top:6px"><select style="width:110px" onchange="setHint('+qi+','+hi+',\'media_type\',this.value)">'+
+      ['','image','video','audio','link'].map(m=>'<option value="'+m+'"'+(m===hh.media_type?' selected':'')+'>'+(m||"be medijos")+'</option>').join("")+'</select>'+
+    '<input class="input grow" placeholder="medijos URL" value="'+esc(hh.media_url||"")+'" oninput="setHint('+qi+','+hi+',\'media_url\',this.value)"></div></div>'; });
+  h+='<button class="btn sec sm" style="margin-top:4px" onclick="addHint('+qi+')">+ Užuomina</button>';
+  return h+'</div>';
+}
+async function saveGame(status){
+  const payload={...editing,
+    questions:editing.questions.map(q=>({...q,lat:q.lat===""?null:+q.lat,lng:q.lng===""?null:+q.lng,
+      alt_answers:[]}))};
+  const res=await a("admin_save_game",{p_payload:payload});
+  if(res.error){toast("Klaida: "+res.error);return;}
+  if(status && status!==false){ await a("admin_set_status",{p_game:res.id,p_status:status==="live"?"live":"ready"}); }
+  toast("Išsaugota · PIN "+res.pin); go("games");
+}
+function importCsv(){
+  const csv=prompt("Įklijuokite CSV (stulpeliai: title,intro,answer,block_text,hints).\nhints formatas: 0:tekstas;5:kitas");
+  if(!csv)return;
+  const lines=csv.split(/\r?\n/).filter(l=>l.trim());
+  const header=lines.shift().split(",").map(s=>s.trim().toLowerCase());
+  const idx=n=>header.indexOf(n);
+  for(const line of lines){
+    const cells=parseCsvLine(line);
+    const q=blankQ();
+    q.title=cells[idx("title")]||""; q.intro=cells[idx("intro")]||""; q.answer=cells[idx("answer")]||"";
+    const bt=idx("block_text")>=0?cells[idx("block_text")]:""; if(bt)q.blocks.push({type:"text",text:bt});
+    const hs=idx("hints")>=0?cells[idx("hints")]:""; if(hs)hs.split(";").forEach(part=>{const [m,...t]=part.split(":");q.hints.push({reveal_after_min:+m||0,text:t.join(":"),media_type:"",media_url:""});});
+    editing.questions.push(q);
+  }
+  renderEditor(); toast("Importuota "+lines.length+" užduočių");
+}
+function parseCsvLine(line){const out=[];let cur="",q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(c===","&&!q){out.push(cur);cur="";}else cur+=c;}out.push(cur);return out.map(s=>s.trim());}
+
+// ================= THEMES =================
+const TKEYS=[["bg","Fonas"],["card","Kortelė"],["ink","Tekstas"],["inkSoft","Tekstas švelnus"],["muted","Blankus"],["line","Linijos"],["primary","Akcentas"],["onPrimary","Ant akcento"],["field","Laukas"]];
+let themeEdit=null;
+function renderThemes(){
+  let h='<div class="row" style="justify-content:space-between"><h1>Temos</h1><button class="btn" onclick="newTheme()">+ Nauja tema</button></div>';
+  for(const t of data.themes){
+    const sw=["bg","card","primary","ink"].map(k=>'<span class="swatch" style="background:'+(t.tokens[k]||"#fff")+'"></span>').join(" ");
+    h+='<div class="card"><div class="row" style="justify-content:space-between"><div class="row"><strong>'+esc(t.name)+'</strong> '+sw+'</div>'+
+      '<div class="row"><button class="btn sec sm" onclick="editTheme(\''+t.id+'\')">Redaguoti</button><button class="btn danger sm" onclick="delTheme(\''+t.id+'\')">Trinti</button></div></div></div>';
+  }
+  if(themeEdit) h+=themeEditor();
+  $("views").innerHTML=h;
+}
+function newTheme(){themeEdit={name:"Nauja tema",tokens:{bg:"#fafafa",card:"#ffffff",ink:"#18181b",inkSoft:"#52525b",muted:"#71717a",line:"#e4e4e7",primary:"#4f46e5",onPrimary:"#ffffff",field:"#f4f4f5",fontDisplay:"'Instrument Serif',serif",fontBody:"'Space Grotesk',sans-serif"}};renderThemes();}
+function editTheme(id){const t=data.themes.find(x=>x.id===id);themeEdit={id:t.id,name:t.name,tokens:{...t.tokens}};renderThemes();}
+function themeEditor(){
+  let h='<div class="card"><h2>'+(themeEdit.id?"Redaguoti temą":"Nauja tema")+'</h2>'+
+    '<label>Pavadinimas</label><input class="input" value="'+esc(themeEdit.name)+'" oninput="themeEdit.name=this.value">';
+  for(const [k,lbl] of TKEYS){ const v=themeEdit.tokens[k]||"#ffffff";
+    h+='<div class="colorrow" style="margin-top:8px"><div><label style="margin:0">'+lbl+'</label><input class="input" value="'+v+'" oninput="themeEdit.tokens.'+k+'=this.value"></div>'+
+       '<input type="color" value="'+(/^#[0-9a-f]{6}$/i.test(v)?v:"#ffffff")+'" oninput="themeEdit.tokens.'+k+'=this.value;this.previousElementSibling.querySelector(\'input\').value=this.value"></div>';
+  }
+  h+='<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn sec" onclick="themeEdit=null;renderThemes()">Atšaukti</button><button class="btn" onclick="saveTheme()">Išsaugoti</button></div></div>';
+  return h;
+}
+async function saveTheme(){const res=await a("admin_save_theme",{p_payload:themeEdit});if(res.error){toast("Klaida");return;}themeEdit=null;await refresh();toast("Tema išsaugota");renderThemes();}
+async function delTheme(id){if(!confirm("Ištrinti temą?"))return;await a("admin_delete_theme",{p_id:id});await refresh();toast("Ištrinta");renderThemes();}
+
+// ================= MONITOR =================
+function renderMonitor(){
+  const opts=data.games.map(g=>'<option value="'+g.id+'">'+esc(g.name)+' ('+g.pin+', '+g.status+')</option>').join("");
+  let h='<h1>Live monitorius</h1><div class="card"><label>Žaidimas</label><select id="monSel" onchange="selectMon(this.value)"><option value="">— pasirinkite —</option>'+opts+'</select></div><div id="monBoard"></div>';
+  $("views").innerHTML=h;
+  if(monGame){$("monSel").value=monGame;selectMon(monGame);}
+}
+function selectMon(id){monGame=id;if($("monSel"))$("monSel").value=id;if(monTimer)clearInterval(monTimer);if(!id){$("monBoard").innerHTML="";return;}
+  pollMon();monTimer=setInterval(pollMon,3000);}
+async function pollMon(){
+  if(!monGame)return;
+  let m; try{m=await a("admin_monitor",{p_game:monGame});}catch{return;}
+  if(m.error){$("monBoard").innerHTML='<p class="muted">'+m.error+'</p>';return;}
+  const now=Date.parse(m.server_now);
+  const exp=m.expires_at?Math.max(0,(Date.parse(m.expires_at)-now)/1000):null;
+  let h='<div class="card"><div class="row" style="justify-content:space-between">'+
+    '<div>'+statusBadge(m.status)+' <span class="muted">'+m.teams.length+' komandų · '+m.total_questions+' užduočių</span></div>'+
+    '<div class="row">'+(exp!=null?'<span class="muted">Liko '+fmt(exp)+'</span>':'')+
+      '<button class="btn sm" onclick="extend(\''+monGame+'\')">+15 min</button>'+
+      '<button class="btn ok sm" onclick="newRun(\''+monGame+'\')">Naujas turas</button></div></div>';
+  h+='<table><thead><tr><th>Komanda</th><th>Etapas</th><th>Laikas etape</th><th>Užuominos</th><th>Bendras</th><th></th></tr></thead><tbody>';
+  for(const t of m.teams){
+    const finished=!!t.finished_at;
+    const stage=finished?'<span class="badge b-live">Baigė</span>':(t.stage_ord?('U'+t.stage_ord+' '+esc(t.stage_title||"")):'—');
+    const stuck=!finished&&t.seconds_on_stage>1500;
+    h+='<tr'+(stuck?' style="background:#fef2f2"':'')+'><td><strong>'+esc(t.name)+'</strong> <span class="muted">('+t.players+')</span></td>'+
+      '<td>'+stage+'</td><td>'+(finished?'—':fmt(t.seconds_on_stage))+'</td><td>'+(t.hints_revealed||0)+'</td>'+
+      '<td>'+fmt(t.total_seconds)+'</td>'+
+      '<td><button class="btn danger sm" onclick="resetTeam(\''+t.id+'\')">Reset</button></td></tr>';
+  }
+  h+='</tbody></table></div>';
+  $("monBoard").innerHTML=h;
+}
+async function resetTeam(id){if(!confirm("Grąžinti komandą į pradžią?"))return;await a("admin_reset_team",{p_team:id});toast("Reset");pollMon();}
+
+// boot
+$("loginBtn").onclick=login;
+$("code").addEventListener("keydown",e=>{if(e.key==="Enter")login();});
+if(CODE){a("admin_list").then(res=>{if(!res.error){data=res;$("login").classList.add("hidden");$("app").classList.remove("hidden");go("games");}}).catch(()=>{});}
+</script>
+</body>
+</html>

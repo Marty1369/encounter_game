@@ -3,346 +3,324 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Švytintys ganytojai iš žvaigždžių</title>
+<title>Riddle platforma</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --bg:#fafafa; --card:#ffffff; --fg:#18181b; --muted:#71717a; --faint:#a1a1aa;
-    --border:#e4e4e7; --border2:#ececee; --primary:#4f46e5; --primary-fg:#ffffff;
+    --bg:#fafafa; --card:#fff; --fg:#18181b; --soft:#52525b; --muted:#71717a; --faint:#a1a1aa;
+    --border:#e4e4e7; --primary:#4f46e5; --primary-fg:#fff; --field:#f4f4f5;
     --ok:#16a34a; --ok-bg:#f0fdf4; --err:#dc2626; --err-bg:#fef2f2; --warn:#d97706; --warn-bg:#fffbeb;
-    --serif:'Instrument Serif',ui-serif,Georgia,serif;
-    --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --serif:'Instrument Serif',ui-serif,Georgia,serif; --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --rbtn:12px; --rcard:16px; --rinput:12px;
   }
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0}
-  body{background:var(--bg);color:var(--fg);font-family:var(--sans);
-    font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;
-    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;
+    -webkit-text-size-adjust:100%;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
   .wrap{max-width:640px;margin:0 auto;padding:0 20px}
-  h1,h2{font-family:var(--serif);font-weight:400;letter-spacing:.2px;margin:0}
+  h1,h2{font-family:var(--serif);font-weight:400;margin:0;letter-spacing:.2px}
   h1{font-size:2rem;line-height:1.1}
-  .muted{color:var(--muted)} .faint{color:var(--faint)}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px}
-  .btn{appearance:none;border:0;border-radius:12px;background:var(--primary);color:var(--primary-fg);
+  .muted{color:var(--muted)} .faint{color:var(--faint)} .soft{color:var(--soft)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--rcard);padding:20px}
+  .btn{appearance:none;border:0;border-radius:var(--rbtn);background:var(--primary);color:var(--primary-fg);
     font-family:var(--sans);font-size:1rem;font-weight:600;padding:14px 18px;width:100%;cursor:pointer}
   .btn:disabled{opacity:.55}
-  .btn.secondary{background:var(--card);color:var(--fg);border:1px solid var(--border)}
-  .input{width:100%;height:52px;border:1px solid var(--border);border-radius:12px;padding:0 14px;
+  .btn.sec{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+  .input{width:100%;height:52px;border:1px solid var(--border);border-radius:var(--rinput);padding:0 14px;
     font-family:var(--sans);font-size:1.05rem;background:var(--card);color:var(--fg);outline:none}
-  .input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.15)}
+  .input:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
+  .pin-input{letter-spacing:.4em;text-transform:uppercase;text-align:center;font-weight:700;font-size:1.4rem}
   .hidden{display:none!important}
-  .center{min-height:80vh;display:flex;flex-direction:column;justify-content:center}
-  /* header */
-  header{position:sticky;top:0;z-index:20;background:rgba(250,250,250,.92);backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--border)}
+  .center{min-height:82vh;display:flex;flex-direction:column;justify-content:center}
+  .row{display:flex;gap:8px} .row .btn{width:auto;padding:14px 20px}
+  header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
   .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
   .badge{font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--card);border:1px solid var(--border)}
   .progress{height:6px;background:var(--border);border-radius:999px;overflow:hidden;margin-bottom:2px}
   .progress>i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .4s}
-  /* content blocks */
   .blocks p{margin:0 0 14px;white-space:pre-line}
   .blocks img,.blocks video{width:100%;border:1px solid var(--border);border-radius:12px;display:block;margin:0 0 14px;background:#000}
+  .blocks a{color:var(--primary);font-weight:600}
   .loc{display:inline-flex;align-items:center;gap:6px;color:var(--primary);text-decoration:none;font-weight:600;font-size:.95rem}
-  /* FA_ answer input */
-  .fa{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card)}
-  .fa:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.15)}
-  .fa .pfx{display:flex;align-items:center;padding:0 12px;background:#f4f4f5;color:var(--muted);
-    font-weight:700;font-variant-ligatures:none;letter-spacing:.5px;border-right:1px solid var(--border);user-select:none}
+  .fa{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--rinput);overflow:hidden;background:var(--card)}
+  .fa:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
+  .fa .pfx{display:flex;align-items:center;padding:0 12px;background:var(--field);color:var(--muted);font-weight:700;letter-spacing:.5px;border-right:1px solid var(--border);user-select:none}
   .fa input{flex:1;border:0;outline:none;height:52px;padding:0 14px;font-size:1.05rem;font-family:var(--sans);background:transparent;color:var(--fg)}
-  .answerbar{position:sticky;bottom:0;background:rgba(250,250,250,.95);backdrop-filter:blur(8px);
-    border-top:1px solid var(--border);padding:12px 0;margin-top:16px}
-  .row{display:flex;gap:8px}
-  .row .btn{width:auto;padding:14px 20px}
-  /* feedback */
-  .fb{border-radius:12px;padding:12px 14px;font-weight:600;margin-top:10px}
-  .fb.ok{background:var(--ok-bg);color:var(--ok)} .fb.err{background:var(--err-bg);color:var(--err)}
-  .fb.warn{background:var(--warn-bg);color:var(--warn)}
-  .shake{animation:sh .4s}
-  @keyframes sh{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-  /* tabs */
+  .answerbar{position:sticky;bottom:0;background:color-mix(in srgb,var(--bg) 95%,transparent);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:12px 0;margin-top:16px}
+  .fb{border-radius:var(--rinput);padding:12px 14px;font-weight:600;margin-top:10px}
+  .fb.ok{background:var(--ok-bg);color:var(--ok)} .fb.err{background:var(--err-bg);color:var(--err)} .fb.warn{background:var(--warn-bg);color:var(--warn)}
+  .shake{animation:sh .4s} @keyframes sh{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
   .tabs{display:flex;gap:8px;margin:16px 0}
-  .tab{flex:1;text-align:center;padding:10px;border-radius:12px;border:1px solid var(--border);
-    background:var(--card);font-weight:600;cursor:pointer;color:var(--muted)}
-  .tab.on{background:var(--fg);color:#fff;border-color:var(--fg)}
-  .dot{display:inline-block;min-width:18px;height:18px;line-height:18px;font-size:.7rem;border-radius:999px;
-    background:var(--primary);color:#fff;margin-left:6px;padding:0 5px}
-  /* hint */
+  .tab{flex:1;text-align:center;padding:10px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);font-weight:600;cursor:pointer;color:var(--muted)}
+  .tab.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+  .dot{display:inline-block;min-width:18px;height:18px;line-height:18px;font-size:.7rem;border-radius:999px;background:var(--primary);color:var(--primary-fg);margin-left:6px;padding:0 5px}
   .hint{border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
-  .hint.locked{opacity:.7}
-  .hint .ht{font-weight:600;margin-bottom:8px}
-  .banner{background:var(--warn-bg);color:var(--warn);border:1px solid #fde68a;border-radius:12px;padding:10px 14px;margin:12px 0;font-weight:600;text-align:center}
-  .spin{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;
-    animation:sp 1s linear infinite;margin:0 auto}
+  .hint.locked{opacity:.7} .hint .ht{font-weight:600;margin-bottom:8px}
+  .hint img,.hint video{width:100%;border-radius:10px;border:1px solid var(--border);margin-top:8px}
+  .banner{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,#fff);border-radius:12px;padding:10px 14px;margin:12px 0;font-weight:600;text-align:center}
+  .team-pick{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+  .team-chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:.9rem}
+  .team-chip.on{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+  .spin{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto}
   @keyframes sp{to{transform:rotate(360deg)}}
+  .lb{width:100%;border-collapse:collapse;margin-top:10px}
+  .lb td{padding:8px 6px;border-bottom:1px solid var(--border)}
+  .lb td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 
-<!-- LOADING -->
-<div id="loading" class="wrap center" style="text-align:center">
-  <div class="spin"></div>
-  <p class="muted" style="margin-top:14px">Kraunama…</p>
-</div>
+<div id="loading" class="wrap center" style="text-align:center"><div class="spin"></div><p class="muted" style="margin-top:14px">Kraunama…</p></div>
 
-<!-- JOIN -->
-<div id="join" class="wrap center hidden">
-  <div style="margin-bottom:22px">
-    <h1>Švytintys ganytojai<br>iš žvaigždžių</h1>
-    <p class="muted" style="margin-top:8px">Įveskite komandos pavadinimą ir pradėkite žaidimą.</p>
+<!-- PIN -->
+<div id="pin" class="wrap center hidden">
+  <div style="margin-bottom:22px;text-align:center">
+    <h1>Riddle platforma</h1>
+    <p class="muted" style="margin-top:8px">Įveskite žaidimo PIN kodą.</p>
   </div>
   <div class="card">
-    <label for="team" style="font-weight:600;font-size:.9rem">Komandos pavadinimas</label>
-    <input id="team" class="input" style="margin:8px 0 14px" maxlength="40" autocomplete="off" placeholder="pvz. Žvaigždžių tyrėjai" />
-    <button id="joinBtn" class="btn">Pradėti žaidimą</button>
+    <input id="pinInput" class="input pin-input" maxlength="6" autocomplete="off" placeholder="PIN" />
+    <button id="pinBtn" class="btn" style="margin-top:12px">Toliau</button>
+    <div id="pinErr" class="fb err hidden"></div>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="lobby" class="wrap center hidden">
+  <div style="margin-bottom:18px">
+    <div class="faint" style="font-size:.8rem" id="lbPin"></div>
+    <h1 id="lbName"></h1>
+    <p class="muted" id="lbDesc" style="margin-top:6px"></p>
+  </div>
+  <div id="lbNotLive" class="banner hidden"></div>
+  <div id="lbJoin" class="card">
+    <div style="font-weight:600;margin-bottom:6px">Pasirinkite komandą arba sukurkite naują</div>
+    <div id="teamPick" class="team-pick"></div>
+    <input id="teamName" class="input" maxlength="40" autocomplete="off" placeholder="Komandos pavadinimas" />
+    <input id="playerName" class="input" style="margin-top:10px" maxlength="40" autocomplete="off" placeholder="Jūsų vardas" />
+    <button id="joinBtn" class="btn" style="margin-top:12px">Prisijungti</button>
     <div id="joinErr" class="fb err hidden"></div>
   </div>
+  <button class="btn sec" style="margin-top:12px" onclick="backToPin()">Kitas PIN</button>
 </div>
 
 <!-- GAME -->
 <div id="game" class="hidden">
-  <header>
-    <div class="wrap">
-      <div class="hrow">
-        <span id="hTeam" style="font-weight:600"></span>
-        <span class="badge" id="hStage"></span>
-      </div>
-      <div class="progress"><i id="hBar"></i></div>
-      <div class="hrow" style="padding-top:4px">
-        <span class="faint" style="font-size:.8rem" id="hStageName"></span>
-        <span class="faint" style="font-size:.8rem" id="hTimer"></span>
-      </div>
-    </div>
-  </header>
+  <header><div class="wrap">
+    <div class="hrow"><span id="hTeam" style="font-weight:600"></span><span class="badge" id="hStage"></span></div>
+    <div class="progress"><i id="hBar"></i></div>
+    <div class="hrow" style="padding-top:4px"><span class="faint" style="font-size:.8rem" id="hGame"></span><span class="faint" style="font-size:.8rem" id="hTimer"></span></div>
+  </div></header>
   <div class="wrap" style="padding-top:16px;padding-bottom:24px">
     <div id="expiredBanner" class="banner hidden">Sesijos laikas pasibaigė. Palaukite, kol organizatorius pratęs.</div>
     <div id="offlineBanner" class="banner hidden">Nėra ryšio — bandome dar kartą…</div>
-
     <div class="tabs">
       <div class="tab on" id="tabTask" onclick="setTab('task')">Užduotis</div>
       <div class="tab" id="tabHints" onclick="setTab('hints')">Užuominos <span id="hintDot" class="dot hidden">0</span></div>
     </div>
-
-    <!-- TASK -->
     <div id="taskView">
       <div id="locLine" style="margin-bottom:10px"></div>
-      <div class="card">
-        <h2 id="tTitle" style="font-size:1.6rem"></h2>
-        <div id="tBlocks" class="blocks" style="margin-top:14px"></div>
-      </div>
+      <div class="card"><h2 id="tTitle" style="font-size:1.6rem"></h2><div id="tIntro" class="muted" style="margin-top:6px"></div><div id="tBlocks" class="blocks" style="margin-top:14px"></div></div>
       <div class="answerbar">
-        <div class="fa">
-          <span class="pfx">FA_</span>
-          <input id="answer" autocomplete="off" autocapitalize="characters" placeholder="atsakymas" enterkeyhint="send" />
-        </div>
+        <div class="fa"><span class="pfx">FA_</span><input id="answer" autocomplete="off" autocapitalize="characters" placeholder="atsakymas" enterkeyhint="send" /></div>
         <div id="feedback"></div>
         <button id="submitBtn" class="btn" style="margin-top:10px">Tikrinti</button>
       </div>
     </div>
-
-    <!-- HINTS -->
     <div id="hintsView" class="hidden"></div>
   </div>
 </div>
 
 <!-- FINISHED -->
 <div id="finished" class="wrap center hidden" style="text-align:center">
-  <div style="font-size:3rem">🚀</div>
+  <div style="font-size:3rem">🏁</div>
   <h1 style="margin-top:8px">Finišas!</h1>
   <p class="muted" id="fMsg" style="margin-top:8px"></p>
   <div class="card" style="margin-top:18px">
-    <div class="muted" style="font-size:.85rem">Bendras laikas</div>
+    <div class="muted" style="font-size:.85rem">Jūsų laikas</div>
     <div id="fTime" style="font-family:var(--serif);font-size:2.4rem;margin-top:4px"></div>
   </div>
+  <div class="card" style="margin-top:12px;text-align:left">
+    <div style="font-weight:600">Rezultatai</div>
+    <table class="lb"><tbody id="fBoard"></tbody></table>
+  </div>
+  <button class="btn sec" style="margin-top:14px" onclick="backToPin()">Į pradžią</button>
 </div>
 
 <script>
-const SB_URL = "https://shgbvoxbwmhhridiihxn.supabase.co";
-const ANON = "sb_publishable_S_K9CFTHDQRlLQOg9KPclA_wtJyavJr";
-const TOKEN_KEY = "sg_token", OUTBOX_KEY = "sg_outbox";
-
-async function rpc(fn, args){
-  const r = await fetch(SB_URL+"/rest/v1/rpc/"+fn, {
-    method:"POST",
-    headers:{apikey:ANON, Authorization:"Bearer "+ANON, "Content-Type":"application/json"},
-    body: JSON.stringify(args)
-  });
-  if(!r.ok) throw new Error("http "+r.status);
-  return await r.json();
+const SB_URL="https://shgbvoxbwmhhridiihxn.supabase.co";
+const ANON="sb_publishable_S_K9CFTHDQRlLQOg9KPclA_wtJyavJr";
+const TOKEN_KEY="sg_token", PIN_KEY="sg_pin", OUTBOX_KEY="sg_outbox";
+async function rpc(fn,args){
+  const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",
+    headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+  if(!r.ok) throw new Error("http "+r.status); return await r.json();
 }
-const assetUrl = f => SB_URL+"/storage/v1/object/public/game-assets/"+encodeURIComponent(f);
+const $=id=>document.getElementById(id);
+let state=null, lobby=null, offset=0, tab="task", pickedTeam="";
+const serverNow=()=>Date.now()+offset;
+const getToken=()=>localStorage.getItem(TOKEN_KEY);
+const getPin=()=>localStorage.getItem(PIN_KEY);
 
-// ---- state ----
-let state = null, offset = 0, tab = "task";
-const $ = id => document.getElementById(id);
-const serverNow = () => Date.now() + offset;
-const getToken = () => localStorage.getItem(TOKEN_KEY);
+function show(v){ for(const s of ["loading","pin","lobby","game","finished"]) $(s).classList.toggle("hidden", s!==v); }
+function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
-function show(view){ // view in loading|join|game|finished
-  for(const v of ["loading","join","game","finished"]) $(v).classList.toggle("hidden", v!==view);
+// theme
+function applyTheme(t){
+  if(!t) return; const r=document.documentElement.style; const set=(k,v)=>{if(v)r.setProperty(k,v);};
+  set("--bg",t.bg);set("--card",t.card);set("--fg",t.ink);set("--soft",t.inkSoft);set("--muted",t.muted);
+  set("--border",t.line);set("--primary",t.primary);set("--primary-fg",t.onPrimary);set("--field",t.field);
+  set("--serif",t.fontDisplay);set("--sans",t.fontBody);set("--rbtn",t.rBtn);set("--rcard",t.rCard);set("--rinput",t.rInput);
 }
-function fmt(sec){ sec=Math.max(0,Math.floor(sec));
-  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60, p=n=>String(n).padStart(2,"0");
-  return h? h+":"+p(m)+":"+p(s) : p(m)+":"+p(s); }
 
-// ---- outbox (idempotent offline submit) ----
-const loadOut = () => { try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||"[]")}catch{return[]} };
-const saveOut = x => localStorage.setItem(OUTBOX_KEY, JSON.stringify(x));
-async function flush(item){
-  const res = await rpc("submit_answer", {p_session:item.token, p_input:item.input, p_mutation_id:item.mid});
-  saveOut(loadOut().filter(i=>i.mid!==item.mid));
-  return res;
-}
-async function drain(){ for(const it of loadOut()){ try{ await flush(it); }catch{} } }
+// outbox
+const loadOut=()=>{try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||"[]")}catch{return[]}};
+const saveOut=x=>localStorage.setItem(OUTBOX_KEY,JSON.stringify(x));
+async function flush(it){const res=await rpc("submit_answer",{p_session:it.token,p_input:it.input,p_mutation_id:it.mid});saveOut(loadOut().filter(i=>i.mid!==it.mid));return res;}
+async function drain(){for(const it of loadOut()){try{await flush(it)}catch{}}}
 
-// ---- actions ----
-async function loadState(){
-  const t = getToken(); if(!t){ show("join"); return; }
+// ---- PIN ----
+async function lookupPin(){
+  const p=$("pinInput").value.trim(); const err=$("pinErr"); err.classList.add("hidden");
+  if(p.length<4){err.textContent="Įveskite PIN.";err.classList.remove("hidden");return;}
+  $("pinBtn").disabled=true;
   try{
-    const s = await rpc("get_state", {p_session:t});
-    $("offlineBanner").classList.add("hidden");
-    if(s.error==="bad_session"){ localStorage.removeItem(TOKEN_KEY); show("join"); return; }
-    apply(s);
-  }catch(e){ $("offlineBanner").classList.remove("hidden"); if(!state) show(getToken()?"game":"join"); }
+    const g=await rpc("get_game_by_pin",{p_pin:p});
+    if(g.error){err.textContent="Žaidimas nerastas.";err.classList.remove("hidden");$("pinBtn").disabled=false;return;}
+    lobby=g; localStorage.setItem(PIN_KEY,p.toUpperCase()); applyTheme(g.theme); renderLobby();
+  }catch(e){err.textContent="Nepavyko. Patikrinkite ryšį.";err.classList.remove("hidden");}
+  $("pinBtn").disabled=false;
 }
-function apply(s){
-  if(s.server_now) offset = Date.parse(s.server_now) - Date.now();
-  state = s; render();
+function renderLobby(){
+  show("lobby");
+  $("lbPin").textContent="PIN "+getPin();
+  $("lbName").textContent=lobby.name||"";
+  $("lbDesc").textContent=lobby.description||"";
+  const live=lobby.status==="live" && !lobby.expired;
+  $("lbJoin").classList.toggle("hidden",!live);
+  const nl=$("lbNotLive");
+  if(!live){ nl.classList.remove("hidden");
+    nl.textContent = lobby.expired?"Šis žaidimas jau pasibaigė." : lobby.status==="ended"?"Šis žaidimas baigtas." : "Žaidimas dar neprasidėjo. Palaukite organizatoriaus.";
+  } else nl.classList.add("hidden");
+  const tp=$("teamPick"); tp.innerHTML="";
+  (lobby.teams||[]).forEach(t=>{
+    const el=document.createElement("div"); el.className="team-chip"; el.textContent=t.name+" ("+t.players+")";
+    el.onclick=()=>{pickedTeam=t.name;$("teamName").value=t.name;document.querySelectorAll(".team-chip").forEach(c=>c.classList.remove("on"));el.classList.add("on");};
+    tp.appendChild(el);
+  });
 }
-async function register(){
-  const name = $("team").value.trim();
-  const err = $("joinErr");
-  if(!name){ err.textContent="Įveskite komandos pavadinimą."; err.classList.remove("hidden"); return; }
+async function join(){
+  const team=$("teamName").value.trim(), name=$("playerName").value.trim(), err=$("joinErr"); err.classList.add("hidden");
+  if(!team){err.textContent="Įveskite komandos pavadinimą.";err.classList.remove("hidden");return;}
+  if(!name){err.textContent="Įveskite savo vardą.";err.classList.remove("hidden");return;}
   $("joinBtn").disabled=true;
   try{
-    const res = await rpc("register_team",{p_name:name});
-    if(res.error){ err.textContent = errMsg(res.error); err.classList.remove("hidden"); $("joinBtn").disabled=false; return; }
-    localStorage.setItem(TOKEN_KEY, res.session_token);
-    if(res.state) apply(res.state);
-  }catch(e){ err.textContent="Nepavyko prisijungti. Patikrinkite ryšį."; err.classList.remove("hidden"); }
+    const res=await rpc("join_game",{p_pin:getPin(),p_team:team,p_name:name});
+    if(res.error){err.textContent=joinErrMsg(res.error);err.classList.remove("hidden");$("joinBtn").disabled=false;return;}
+    localStorage.setItem(TOKEN_KEY,res.session_token);
+    if(res.state){apply(res.state);}
+  }catch(e){err.textContent="Nepavyko prisijungti.";err.classList.remove("hidden");}
   $("joinBtn").disabled=false;
 }
-function errMsg(e){ return {
-  bad_name:"Įveskite pavadinimą (iki 40 simbolių).", not_started:"Žaidimas dar neprasidėjo.",
-  expired:"Žaidimo laikas pasibaigė.", full:"Komandų limitas pasiektas.", no_game:"Žaidimas nerastas."
-}[e] || "Klaida. Bandykite dar kartą."; }
+function joinErrMsg(e){return{bad_team:"Blogas komandos pavadinimas.",bad_name:"Įveskite vardą.",not_found:"Žaidimas nerastas.",not_live:"Žaidimas neprasidėjęs.",expired:"Žaidimas pasibaigė.",full:"Komandų limitas pasiektas."}[e]||"Klaida.";}
+function backToPin(){localStorage.removeItem(TOKEN_KEY);localStorage.removeItem(PIN_KEY);state=null;lobby=null;$("pinInput").value="";show("pin");}
 
-const revealed = new Set();
+// ---- state ----
+function apply(s){if(s.server_now)offset=Date.parse(s.server_now)-Date.now();state=s;if(s.theme)applyTheme(s.theme);render();}
+async function loadState(){
+  const t=getToken(); if(!t){ if(!lobby) show(getPin()?"pin":"pin"); return; }
+  try{ const s=await rpc("get_state",{p_session:t}); $("offlineBanner").classList.add("hidden");
+    if(s.error==="bad_session"){localStorage.removeItem(TOKEN_KEY);show("pin");return;} apply(s);
+  }catch(e){ $("offlineBanner").classList.remove("hidden"); if(!state) show(getToken()?"game":"pin"); }
+}
+
+const revealed=new Set();
 async function submitAnswer(){
-  const word = $("answer").value.trim();
-  const fb = $("feedback");
-  if(!word) return;
+  const word=$("answer").value.trim(), fb=$("feedback"); if(!word)return;
   $("submitBtn").disabled=true; fb.className=""; fb.textContent="";
-  const item = {token:getToken(), input:word, mid:crypto.randomUUID()};
-  saveOut([...loadOut(), item]);
-  try{
-    const res = await flush(item);
-    if(res.error==="expired"){ fb.className="fb warn"; fb.textContent="Sesija pasibaigė."; await loadState(); }
-    else if(res.correct){ fb.className="fb ok"; fb.textContent="Teisingai! 🎉"; $("answer").value=""; await loadState(); }
-    else{ fb.className="fb err shake"; fb.textContent="Neteisingai. Bandykite dar kartą."; }
-  }catch(e){
-    fb.className="fb warn"; fb.textContent="Nėra ryšio — atsakymas išsaugotas, bandome dar kartą…";
-  }
+  const it={token:getToken(),input:word,mid:crypto.randomUUID()}; saveOut([...loadOut(),it]);
+  try{ const res=await flush(it);
+    if(res.error==="expired"){fb.className="fb warn";fb.textContent="Sesija pasibaigė.";await loadState();}
+    else if(res.correct){fb.className="fb ok";fb.textContent="Teisingai! 🎉";$("answer").value="";await loadState();}
+    else{fb.className="fb err shake";fb.textContent="Neteisingai. Bandykite dar kartą.";}
+  }catch(e){fb.className="fb warn";fb.textContent="Nėra ryšio — atsakymas išsaugotas, bandome dar kartą…";}
   $("submitBtn").disabled=false;
 }
-function setTab(t){ tab=t; render(); }
+function setTab(t){tab=t;render();}
 
-// ---- render ----
+// ---- render play ----
 function render(){
-  if(!state){ show("loading"); return; }
-  if(state.finished){
-    show("finished");
-    $("fMsg").textContent = (state.team?.name||"") + " — įveikėte visas 13 užduočių!";
-    $("fTime").textContent = fmt(state.total_seconds||0);
-    return;
+  if(!state){return;}
+  if(state.finished){ show("finished");
+    $("fMsg").textContent=(state.team?.name||"")+" — įveikėte "+(state.total_questions||"")+" užduotis!";
+    $("fTime").textContent=fmt(state.total_seconds||0); loadBoard(); return;
   }
   show("game");
-  const q = state.question;
-  $("hTeam").textContent = state.team?.name || "";
-  $("hStage").textContent = "U"+q.ord+" / "+state.total_questions;
-  $("hStageName").textContent = q.title || "";
-  $("hBar").style.width = (q.ord/state.total_questions*100)+"%";
-  $("expiredBanner").classList.toggle("hidden", !state.expired);
-  $("submitBtn").disabled = !!state.expired;
-
-  // location
-  const loc = $("locLine");
-  if(q.lat!=null && q.lng!=null){
-    loc.innerHTML = '<a class="loc" target="_blank" rel="noreferrer" href="https://www.google.com/maps?q='+q.lat+','+q.lng+'">📍 '+(q.location_name||"Žemėlapis")+'</a>';
-  } else loc.innerHTML = "";
-
-  // task blocks
-  $("tTitle").textContent = q.title || "";
-  $("tBlocks").innerHTML = (q.blocks||[]).map(renderBlock).join("");
-
-  // hints tab count (unlocked)
-  const hints = (state.hints||[]);
-  const unlocked = hints.filter(h=>h.unlocked).length;
-  const dot = $("hintDot");
-  if(hints.length){ dot.classList.remove("hidden"); dot.textContent = unlocked+"/"+hints.length; }
-  else dot.classList.add("hidden");
-
-  // tab views
-  $("taskView").classList.toggle("hidden", tab!=="task");
-  $("hintsView").classList.toggle("hidden", tab!=="hints");
-  $("tabTask").classList.toggle("on", tab==="task");
-  $("tabHints").classList.toggle("on", tab==="hints");
-  if(tab==="hints") renderHints();
-
-  // mark newly unlocked hints revealed
-  for(const h of hints){ if(h.unlocked && !revealed.has(h.id)){ revealed.add(h.id); rpc("mark_hint_revealed",{p_session:getToken(),p_hint_id:h.id}).catch(()=>{}); } }
+  const q=state.question;
+  $("hTeam").textContent=state.team?.name||"";
+  $("hGame").textContent=state.game_name||"";
+  $("hStage").textContent=q.ord+" / "+state.total_questions;
+  $("hBar").style.width=(q.ord/state.total_questions*100)+"%";
+  $("expiredBanner").classList.toggle("hidden",!state.expired);
+  $("submitBtn").disabled=!!state.expired;
+  const loc=$("locLine");
+  loc.innerHTML=(q.lat!=null&&q.lng!=null)?'<a class="loc" target="_blank" rel="noreferrer" href="https://www.google.com/maps?q='+q.lat+','+q.lng+'">📍 '+esc(q.location_name||"Žemėlapis")+'</a>':"";
+  $("tTitle").textContent=q.title||"";
+  $("tIntro").textContent=q.intro||"";
+  $("tBlocks").innerHTML=(q.blocks||[]).map(renderBlock).join("");
+  const hints=state.hints||[]; const unlocked=hints.filter(h=>h.unlocked).length; const dot=$("hintDot");
+  if(hints.length){dot.classList.remove("hidden");dot.textContent=unlocked+"/"+hints.length;}else dot.classList.add("hidden");
+  $("taskView").classList.toggle("hidden",tab!=="task");
+  $("hintsView").classList.toggle("hidden",tab!=="hints");
+  $("tabTask").classList.toggle("on",tab==="task");
+  $("tabHints").classList.toggle("on",tab==="hints");
+  if(tab==="hints")renderHints();
+  for(const h of hints){if(h.unlocked&&!revealed.has(h.id)){revealed.add(h.id);rpc("mark_hint_revealed",{p_session:getToken(),p_hint_id:h.id}).catch(()=>{});}}
 }
-function renderBlock(b){
-  if(b.type==="text") return "<p>"+escapeHtml(b.text)+"</p>";
-  if(b.type==="image") return '<img loading="lazy" src="'+assetUrl(b.src)+'" alt="">';
-  if(b.type==="video") return '<video controls playsinline preload="metadata" src="'+assetUrl(b.src)+'"></video>';
+function media(type,url){
+  if(!url)return"";
+  if(type==="image")return '<img loading="lazy" src="'+esc(url)+'" alt="">';
+  if(type==="video")return '<video controls playsinline preload="metadata" src="'+esc(url)+'"></video>';
+  if(type==="audio")return '<audio controls style="width:100%" src="'+esc(url)+'"></audio>';
+  if(type==="link")return '<a href="'+esc(url)+'" target="_blank" rel="noreferrer">'+esc(url)+'</a>';
   return "";
 }
+function renderBlock(b){ if(b.type==="text")return "<p>"+esc(b.text)+"</p>"; return media(b.type,b.url); }
 function renderHints(){
-  const hints = [...(state.hints||[])].sort((a,b)=>a.ord-b.ord);
-  if(!hints.length){ $("hintsView").innerHTML = '<p class="muted" style="text-align:center;padding:24px 0">Šiai užduočiai užuominų nėra.</p>'; return; }
-  const firstLocked = hints.find(h=>!h.unlocked);
-  if(firstLocked){
-    const rem = (Date.parse(state.activated_at)+firstLocked.reveal_after_min*60000 - serverNow())/1000;
-    if(rem<=0) loadState(); // gate passed but content not here yet -> refresh
-  }
+  const hints=[...(state.hints||[])].sort((a,b)=>a.ord-b.ord);
+  if(!hints.length){$("hintsView").innerHTML='<p class="muted" style="text-align:center;padding:24px 0">Šiai užduočiai užuominų nėra.</p>';return;}
+  const firstLocked=hints.find(h=>!h.unlocked);
+  if(firstLocked){const rem=(Date.parse(state.activated_at)+firstLocked.reveal_after_min*60000-serverNow())/1000;if(rem<=0)loadState();}
   let html="";
   for(const h of hints){
-    if(!h.unlocked){
-      if(h.id!==firstLocked?.id) continue; // only the next locked hint is shown
-      const rem = (Date.parse(state.activated_at)+h.reveal_after_min*60000 - serverNow())/1000;
-      html += '<div class="hint locked"><div class="ht">🔒 Užuomina '+h.ord+'</div><div class="muted" style="font-size:.85rem">'+(rem>0?("po "+fmt(rem)):"atrakinama…")+'</div></div>';
+    if(!h.unlocked){ if(h.id!==firstLocked?.id)continue;
+      const rem=(Date.parse(state.activated_at)+h.reveal_after_min*60000-serverNow())/1000;
+      html+='<div class="hint locked"><div class="ht">🔒 Užuomina '+h.ord+'</div><div class="muted" style="font-size:.85rem">'+(rem>0?("po "+fmt(rem)):"atrakinama…")+'</div></div>';
     }else{
-      html += '<div class="hint"><div class="ht">💡 Užuomina '+h.ord+'</div>'+hintContent(h)+'</div>';
+      html+='<div class="hint"><div class="ht">💡 Užuomina '+h.ord+'</div>'+(h.text?'<p style="margin:0;white-space:pre-line">'+esc(h.text)+'</p>':"")+media(h.media_type,h.media_url)+'</div>';
     }
   }
-  $("hintsView").innerHTML = html;
+  $("hintsView").innerHTML=html;
 }
-function hintContent(h){
-  if(h.type==="image"){
-    const parts=(h.content||"").split(" — "); const file=parts.shift().trim(); const cap=parts.join(" — ");
-    return '<img loading="lazy" style="width:100%;border-radius:10px;border:1px solid var(--border)" src="'+assetUrl(file)+'" alt="">'+(cap?'<div class="muted" style="font-size:.8rem;margin-top:6px">'+escapeHtml(cap)+'</div>':"");
-  }
-  return '<p style="margin:0;white-space:pre-line">'+escapeHtml(h.content||"")+'</p>';
+async function loadBoard(){
+  try{ const lb=await rpc("leaderboard",{p_pin:getPin()});
+    $("fBoard").innerHTML=(lb||[]).map((r,i)=>'<tr><td>'+(i+1)+'. '+esc(r.name)+'</td><td>'+fmt(r.total_seconds)+'</td></tr>').join("")||'<tr><td class="muted">Kol kas nėra baigusių.</td></tr>';
+  }catch{}
 }
-function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-// header stage timer + live countdowns
-setInterval(()=>{
-  if(!state||state.finished||!state.activated_at) return;
-  $("hTimer").textContent = "⏱ "+fmt((serverNow()-Date.parse(state.activated_at))/1000);
-  if(tab==="hints") renderHints();
-}, 1000);
-
-// wiring
-$("joinBtn").onclick = register;
-$("team").addEventListener("keydown", e=>{ if(e.key==="Enter") register(); });
-$("submitBtn").onclick = submitAnswer;
-$("answer").addEventListener("keydown", e=>{ if(e.key==="Enter") submitAnswer(); });
-window.addEventListener("online", ()=>{ drain(); loadState(); });
-setInterval(()=>{ loadState(); drain(); }, 10000);
-loadState();
+// timers + wiring
+setInterval(()=>{ if(!state||state.finished||!state.activated_at)return; $("hTimer").textContent="⏱ "+fmt((serverNow()-Date.parse(state.activated_at))/1000); if(tab==="hints")renderHints(); },1000);
+$("pinBtn").onclick=lookupPin;
+$("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")lookupPin();});
+$("joinBtn").onclick=join;
+$("submitBtn").onclick=submitAnswer;
+$("answer").addEventListener("keydown",e=>{if(e.key==="Enter")submitAnswer();});
+window.addEventListener("online",()=>{drain();loadState();});
+setInterval(()=>{if(getToken()){loadState();drain();}},10000);
+// boot
+if(getToken()) loadState(); else show("pin");
 </script>
 </body>
 </html>
