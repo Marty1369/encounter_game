@@ -236,13 +236,17 @@ function dismissNotice(){$("noticePop").classList.add("hidden");if(noticeQ.lengt
 // ---- Countdown to start ----
 function pCountdown(){
   const st=pGameState;
-  const rem=st.starts_at?(Date.parse(st.starts_at)-serverNow())/1000:0;
+  const scheduled=!!st.starts_at;                // no schedule yet = host simply hasn't started
+  const rem=scheduled?(Date.parse(st.starts_at)-serverNow())/1000:0;
   $("pscreen").innerHTML=`<div style="padding:40px 24px;display:flex;flex-direction:column;gap:16px;text-align:center;animation:fadeup .25s ease;min-height:640px;justify-content:center;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--th-muted);">${esc(st.game_name||"")}</div>
     <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:26px;letter-spacing:var(--th-displayTracking);">Get ready, ${esc(st.team.name)}</div>
-    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);margin-top:6px;">Game starts in</div>
-    <div id="pCd" style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:56px;font-variant-numeric:tabular-nums;color:var(--th-primary);">${rem>0?fmt(rem):"0:00"}</div>
-    <div style="font-size:13px;color:var(--th-inkSoft);">The first challenge unlocks automatically when the timer hits zero.</div>
+    ${scheduled?`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);margin-top:6px;">Game starts in</div>
+    <div id="pCd" style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:56px;font-variant-numeric:tabular-nums;color:var(--th-primary);">${fmt(rem>0?rem:0)}</div>
+    <div style="font-size:13px;color:var(--th-inkSoft);">The first challenge unlocks automatically when the timer hits zero.</div>`
+    :`<div style="font-size:34px;margin-top:6px;">⏳</div>
+    <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:20px;color:var(--th-primary);">Waiting for the host</div>
+    <div style="font-size:13px;color:var(--th-inkSoft);">You're in. The first challenge opens by itself the moment the host starts the game — keep this screen open.</div>`}
     ${inviteCard(st.team.name)}</div>`;
   renderQR("pQR",inviteURL());
 }
@@ -551,8 +555,11 @@ async function pDone(){
 // elapsed ticker
 setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished)return;
   if(pGameState.started===false){ // pre-start countdown + auto-start
-    const rem=pGameState.starts_at?(Date.parse(pGameState.starts_at)-serverNow())/1000:0;
-    const cd=$("pCd");if(cd)cd.textContent=rem>0?fmt(rem):"0:00";
+    // No schedule yet (activated, host hasn't started): nothing to count down. Without this
+    // guard rem was 0, so this fired pRefresh() every second, per player, forever.
+    if(!pGameState.starts_at)return;             // the 10s poll picks the start up
+    const rem=(Date.parse(pGameState.starts_at)-serverNow())/1000;
+    const cd=$("pCd");if(cd)cd.textContent=fmt(rem>0?rem:0);
     if(rem<=0){pState.screen="game";pRefresh();}
     return;
   }
