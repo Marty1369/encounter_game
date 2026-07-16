@@ -778,7 +778,7 @@ function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:1
   <div style="display:flex;flex-direction:column;gap:5px;max-width:200px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Max teams</label><input type="number" value="${wiz.max_teams}" oninput="setW('max_teams',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div>
   <p style="font-size:11.5px;color:#a1a1aa;margin:0;">No fixed duration — the game runs until you stop it (or all teams finish).</p></div>`;}
 function wizStep2(){
-  const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
+  const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
     <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
     <div style="font-size:11px;color:#a1a1aa;">${(q.blocks||[]).length} blocks · ${(q.hints||[]).length} hints</div></button>
     <button onclick="moveQ(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↑</button>
@@ -786,10 +786,14 @@ function wizStep2(){
     <button onclick="delWQ(${i})" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 4px;">✕</button></div>`;}).join("");
   const q=wiz.questions[wiz.sel];
   const editor=q?wqEditor(q):`<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">Select or add a question.</div>`;
+  // The list is pinned and scrolls on its own, so scrolling a long question's data
+  // never drags the question list away.
   return `<div style="display:grid;grid-template-columns:minmax(210px,300px) 1fr;gap:18px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
-    <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
-    ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div>${editor}</div>`;
+    <div style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
+      <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;padding-right:3px;">
+        ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div></div>${editor}</div>`;
 }
 function wqEditor(q){
   const blocks=q.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
