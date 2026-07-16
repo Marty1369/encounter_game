@@ -258,7 +258,7 @@ function pJoinScreen(){
     card=`<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:11px;">
       <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Game PIN</label>
       <input id="pin" value="${esc(pState.pin)}" oninput="pState.pin=this.value;clearTimeout(pLookupT);pLookupT=setTimeout(pLookup,350)" placeholder="0000" style="width:100%;box-sizing:border-box;padding:14px;font-size:24px;letter-spacing:.4em;text-align:center;font-weight:600;font-family:'Space Grotesk',monospace;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);text-transform:uppercase;">
-      <div style="font-size:13.5px;color:var(--th-inkSoft);text-align:center;line-height:1.6;padding:6px 0;">Enter a game PIN to begin.<br>Try <strong>STAR42</strong>.</div></div>`;
+      <div style="font-size:13.5px;color:var(--th-inkSoft);text-align:center;line-height:1.6;padding:6px 0;">Enter a game PIN to begin.</div></div>`;
   }
   $("pscreen").innerHTML=`<div style="padding:34px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .25s ease;">
     <div style="padding:10px 0 2px;">
