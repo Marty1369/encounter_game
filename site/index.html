@@ -20,7 +20,7 @@
   .hidden{display:none!important}
   /* wizard Questions step: list | editor | live preview (preview width is drag-resizable) */
   .wizGrid{display:grid;grid-template-columns:minmax(200px,270px) minmax(300px,1fr) var(--prevW,340px);gap:16px;align-items:start}
-  .wizGrid.noPrev{grid-template-columns:minmax(200px,270px) 1fr}
+  .wizGrid.noPrev{grid-template-columns:minmax(200px,270px) 1fr auto}
   @media (max-width:1200px){.wizGrid{grid-template-columns:minmax(190px,240px) 1fr}.wizPrev{grid-column:2}}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   @keyframes popin{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
@@ -868,8 +868,12 @@ function wizStep2(){
         <span style="display:flex;align-items:center;gap:7px;min-width:0;">
           <span onpointerdown="startPrevResize(event)" title="Drag to resize" style="cursor:col-resize;user-select:none;touch-action:none;color:#a1a1aa;font-size:13px;line-height:1;">⣿</span>
           <strong style="font-size:13px;color:#18181b;">Preview</strong></span>
-        <button onclick="toggleWizPrev()" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#52525b;flex-shrink:0;">Hide</button></div>
-      <div id="wizPrevBody" style="${themeVars(tk)}font-family:var(--th-fontBody);background:var(--th-bg);border:1px solid #e4e4e7;border-radius:13px;padding:14px;overflow-y:auto;min-height:0;">${wizPreviewQ(q,wiz.sel,wiz.questions.length)}</div></div>`:"";
+        <button onclick="toggleWizPrev()" title="Hide preview" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#52525b;flex-shrink:0;">Hide ▶</button></div>
+      <div id="wizPrevBody" style="${themeVars(tk)}font-family:var(--th-fontBody);background:var(--th-bg);border:1px solid #e4e4e7;border-radius:13px;padding:14px;overflow-y:auto;min-height:0;">${wizPreviewQ(q,wiz.sel,wiz.questions.length)}</div></div>`
+    // Hidden: keep a toggle in the preview's own slot — the control that hid it has to be the
+    // control that brings it back, otherwise it looks gone for good.
+    :(q?`<div class="wizPrev" style="position:sticky;top:78px;">
+      <button onclick="toggleWizPrev()" title="Show preview" style="writing-mode:vertical-rl;transform:rotate(180deg);border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:9px;padding:14px 7px;font-size:11.5px;font-weight:600;color:#52525b;letter-spacing:.06em;white-space:nowrap;">◀ Show preview</button></div>`:"");
   // The list is pinned and scrolls on its own, so scrolling a long question's data
   // never drags the question list away.
   return `<div class="wizGrid${showPrev?"":" noPrev"}" style="--prevW:${_prevW}px;">
