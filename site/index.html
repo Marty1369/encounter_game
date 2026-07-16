@@ -18,6 +18,9 @@
   input:focus,select:focus,textarea:focus{outline:2px solid #a1a1aa;outline-offset:0}
   button{font-family:inherit}
   .hidden{display:none!important}
+  /* wizard Questions step: list | editor | live preview */
+  .wizGrid{display:grid;grid-template-columns:minmax(200px,270px) minmax(300px,1fr) minmax(290px,390px);gap:16px;align-items:start}
+  @media (max-width:1400px){.wizGrid{grid-template-columns:minmax(190px,240px) 1fr}.wizPrev{grid-column:2}}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   @keyframes popin{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
   @keyframes fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -788,14 +791,25 @@ function wizStep2(){
     <button onclick="delWQ(${i})" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 4px;">✕</button></div>`;}).join("");
   const q=wiz.questions[wiz.sel];
   const editor=q?wqEditor(q):`<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">Select or add a question.</div>`;
+  const tk=(adminData.themes.find(t=>t.id===wiz.theme_id)||{}).tokens||{};
+  const prev=q?`<div class="wizPrev" style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-shrink:0;"><strong style="font-size:13px;color:#18181b;">Preview</strong>
+      <span style="font-size:9.5px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.08em;">as players see it</span></div>
+      <div id="wizPrevBody" style="${themeVars(tk)}font-family:var(--th-fontBody);background:var(--th-bg);border:1px solid #e4e4e7;border-radius:13px;padding:14px;overflow-y:auto;min-height:0;">${wizPreviewQ(q,wiz.sel,wiz.questions.length)}</div></div>`:"";
   // The list is pinned and scrolls on its own, so scrolling a long question's data
   // never drags the question list away.
-  return `<div style="display:grid;grid-template-columns:minmax(210px,300px) 1fr;gap:18px;align-items:start;">
+  return `<div class="wizGrid">
     <div style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
       <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
       <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;padding-right:3px;">
-        ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div></div>${editor}</div>`;
+        ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div></div>${editor}${prev}</div>`;
+}
+// Repaint just the preview — never drawAdmin() from an oninput, that would re-create the
+// field being typed into and drop focus.
+function wizSyncPreview(){
+  const el=$("wizPrevBody"),q=wiz.questions[wiz.sel];
+  if(el&&q)el.innerHTML=wizPreviewQ(q,wiz.sel,wiz.questions.length);
 }
 function wqEditor(q){
   const blocks=q.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
@@ -815,7 +829,7 @@ function wqEditor(q){
     <div style="display:flex;align-items:center;gap:7px;">
       <strong style="font-size:11.5px;color:#18181b;">Hint ${i+1}</strong>
       <span style="font-size:10px;color:#a1a1aa;text-transform:uppercase;letter-spacing:.07em;">reveal after</span>
-      <input type="number" min="0" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value" style="width:52px;padding:4px 6px;border:1px solid #e4e4e7;border-radius:6px;font-size:12px;"><span style="font-size:10px;color:#a1a1aa;">min</span>
+      <input type="number" min="0" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value;wizSyncPreview()" style="width:52px;padding:4px 6px;border:1px solid #e4e4e7;border-radius:6px;font-size:12px;"><span style="font-size:10px;color:#a1a1aa;">min</span>
       <span style="margin-left:auto;display:flex;gap:1px;">
         <button onclick="moveWHint(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↑</button>
         <button onclick="moveWHint(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:13px;padding:2px 4px;">↓</button>
@@ -828,15 +842,15 @@ function wqEditor(q){
       <button onclick="addHBlock(${i})" style="border:1px solid #e4e4e7;cursor:pointer;padding:6px 12px;border-radius:7px;font-weight:600;font-size:11.5px;background:#fff;color:#18181b;">Add block</button></div></div>`;}).join("");
   return `<div style="display:flex;flex-direction:column;gap:12px;border:1px solid #f0f0f1;border-radius:12px;padding:18px;background:#fafafa;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
-      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Correct answer</label><input value="${esc(q.answer)}" oninput="wiz.questions[wiz.sel].answer=this.value" placeholder="case-insensitive" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div></div>
+      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value;wizSyncPreview()" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
+      <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Correct answer</label><input value="${esc(q.answer)}" oninput="wiz.questions[wiz.sel].answer=this.value;wizSyncPreview()" placeholder="case-insensitive" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div></div>
     <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label>
-      <textarea oninput="wiz.questions[wiz.sel].intro=this.value" placeholder="Story text shown above the challenge…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:96px;resize:vertical;line-height:1.5;">${esc(q.intro||"")}</textarea></div>
+      <textarea oninput="wiz.questions[wiz.sel].intro=this.value;wizSyncPreview()" placeholder="Story text shown above the challenge…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:96px;resize:vertical;line-height:1.5;">${esc(q.intro||"")}</textarea></div>
     <div style="display:flex;flex-direction:column;gap:4px;max-width:220px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Answer matching</label>
       <select onchange="wiz.questions[wiz.sel].case_sensitive=(this.value==='cs')" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;background:#fff;">
         <option value="ci" ${q.case_sensitive?"":"selected"}>Case-insensitive</option><option value="cs" ${q.case_sensitive?"selected":""}>Case-sensitive</option></select></div>
     <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Important info (highlighted callout, optional)</label>
-      <textarea oninput="wiz.questions[wiz.sel].info=this.value" placeholder="Shown to players in a highlighted frame at the end of the question…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:56px;resize:vertical;">${esc(q.info||"")}</textarea></div>
+      <textarea oninput="wiz.questions[wiz.sel].info=this.value;wizSyncPreview()" placeholder="Shown to players in a highlighted frame at the end of the question…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:56px;resize:vertical;">${esc(q.info||"")}</textarea></div>
     <div style="display:flex;flex-direction:column;gap:6px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Content blocks — text, image, video, audio, link</label>${blocks}
       <div style="display:flex;gap:8px;flex-wrap:wrap;"><select onchange="wiz.wbType=this.value" style="padding:9px 10px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;background:#fff;">
         ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["url","Link"]].map(o=>`<option value="${o[0]}" ${wiz.wbType===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
