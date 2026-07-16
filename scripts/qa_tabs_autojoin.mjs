@@ -116,6 +116,18 @@ async function main() {
   await sleep(1200);
   const lb = (await mate.locator("body").innerText()).replace(/\s+/g, " ");
   ok("Leaderboard tab shows the live standings", /Leaderboard/.test(lb) && /Vilkai/.test(lb) && /Lapes/.test(lb), lb.slice(0, 130));
+  // The captain's team QR must survive the game starting — before this it only existed on the
+  // countdown/lobby, which are unreachable once you enter the game, leaving only the admin's
+  // basic game QR.
+  const lbInvite = await mate.evaluate(() => ({
+    hasCard: /Invite teammates/i.test(document.body.innerText),
+    qr: (document.getElementById("pQR") || {}).dataset?.qr || null,
+    svg: !!document.querySelector("#pQR svg"),
+  }));
+  ok("Team QR is still reachable mid-game (Leaderboard tab)",
+     lbInvite.hasCard && lbInvite.svg && /[?&]t=[0-9a-f]{6}/.test(lbInvite.qr || ""), JSON.stringify(lbInvite));
+  ok("...and it is the TEAM QR, not the basic game QR", !!lbInvite.qr && lbInvite.qr !== `${APP}?pin=${PIN}`, lbInvite.qr);
+
   await mate.getByRole("button", { name: "Back to the game" }).click();
   await sleep(800);
   ok("Back to the game returns to the challenge", !!(await mate.$("#answer")));
