@@ -805,11 +805,14 @@ function controlsPanel(g){
   const started=g.starts_at&&new Date(g.starts_at).getTime()<=Date.now()+15000; // 15s skew buffer
   const paused=!!g.paused_at;
   const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
     <span style="display:flex;gap:5px;"><button onclick="showTeamQR('${g.pin}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Join QR</button>
     <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">View</button>
-    <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></span></div>
-    <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
+    <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button>
+    <button onclick="delTeam('${t.id}')" title="Remove this team" style="border:1px solid #fecaca;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#dc2626;">Remove</button></span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(t.players||[]).map(p=>
+      `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 5px 3px 9px;border-radius:999px;background:#fff;border:1px solid #e4e4e7;color:#52525b;">${esc(p.name)}<button onclick="delPlayer('${p.id}')" title="Remove ${esc(p.name)}" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;line-height:1;padding:0 2px;">✕</button></span>`).join("")
+      ||'<span style="font-size:11.5px;color:#a1a1aa;">No players — this team no longer holds the game open.</span>'}</div></div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
     <div style="display:flex;gap:7px;flex-wrap:wrap;">
       <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button>
@@ -867,6 +870,26 @@ function showTeamQR(pin,teamId){
   renderQR("qrBox",teamJoinURL(pin,teamId));
 }
 function closeQR(){$("qrPop").classList.add("hidden");}
+// Removing a team signs its players out (their session stops resolving) and deletes the team's
+// progress — say so plainly rather than after the fact.
+async function delTeam(id){
+  const t=((selRoster||{}).teams||[]).find(x=>x.id===id)||{};
+  const n=(t.players||[]).length;
+  if(!confirm(`Remove team "${t.name||""}"?\n\n${n} player${n===1?"":"s"} will be signed out and this team's progress and answers are deleted. This cannot be undone.`))return;
+  const r=await a("admin_delete_team",{p_team:id});
+  if(r&&r.error){toast("Could not remove: "+r.error);return;}
+  toast('Removed team "'+(r.name||t.name||"")+'"');
+  adminData=await a("admin_list");selectGame(id===selGame.id?id:selGame.id);
+}
+async function delPlayer(id){
+  const t=((selRoster||{}).teams||[]).find(x=>(x.players||[]).some(p=>p.id===id))||{};
+  const p=((t.players||[]).find(x=>x.id===id))||{};
+  if(!confirm(`Remove player "${p.name||""}" from "${t.name||""}"?\n\nThey'll be signed out. The team keeps its progress.`))return;
+  const r=await a("admin_delete_player",{p_player:id});
+  if(r&&r.error){toast("Could not remove: "+r.error);return;}
+  toast(r.players_left===0?`Removed ${r.name} — "${t.name}" has no players left`:`Removed ${r.name}`);
+  selectGame(selGame.id);
+}
 async function activateGame(id){await a("admin_activate",{p_game:id});toast("Registration open");adminData=await a("admin_list");selectGame(id);}
 async function pauseGame(id){const m=prompt("Message players see while paused:","We've paused briefly — hang tight!");if(m===null)return;await a("admin_pause",{p_game:id,p_message:m});toast("Game paused");adminData=await a("admin_list");selectGame(id);}
 async function resumeGame(id){await a("admin_resume",{p_game:id});toast("Game resumed");adminData=await a("admin_list");selectGame(id);}
