@@ -32,14 +32,17 @@ const rpc = async (fn, a) => {
 let pass = 0, fail = 0;
 const ok = (n, c, extra = "") => { console.log((c ? "  ✓ " : "  ✗ ") + n + (c ? "" : " — " + extra)); c ? pass++ : fail++; };
 
-// what we care about surviving the trip
+// What we care about surviving the trip. Import trims surrounding whitespace on every cell by
+// design (spreadsheets are full of stray spaces, and it renders identically), so compare trimmed
+// — internal newlines/indentation, e.g. the binary-matrix hints, are NOT touched by that trim.
+const t = s => String(s == null ? "" : s).trim();
 const norm = qs => qs.map(q => ({
-  title: q.title, intro: q.intro || "", answer: q.answer || "", info: q.info || "",
+  title: t(q.title), intro: t(q.intro), answer: t(q.answer), info: t(q.info),
   case_sensitive: !!q.case_sensitive,
-  blocks: (q.blocks || []).map(b => ({ type: b.type, content: b.content })),
+  blocks: (q.blocks || []).map(b => ({ type: b.type, content: t(b.content) })),
   hints: (q.hints || []).map(h => ({
     reveal_after_min: Number(h.reveal_after_min) || 0,
-    blocks: (h.blocks || []).map(b => ({ type: b.type, content: b.content })),
+    blocks: (h.blocks || []).map(b => ({ type: b.type, content: t(b.content) })),
   })),
 }));
 

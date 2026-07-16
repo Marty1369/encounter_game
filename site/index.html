@@ -150,7 +150,16 @@ async function pJoin(team){
   }catch{toast("Could not join.");}
 }
 function joinErr(e){return{bad_team:"Bad team name.",bad_name:"Enter your name.",not_found:"Game not found.",not_live:"Game hasn't started.",expired:"Game has ended.",full:"Team limit reached."}[e]||"Error.";}
-function applyState(s){if(s.server_now)pOffset=Date.parse(s.server_now)-Date.now();pGameState=s;if(s.theme)applyTheme(s.theme);}
+function applyState(s){
+  if(s.server_now)pOffset=Date.parse(s.server_now)-Date.now();
+  // Waiting on the countdown and the game just started (host hit "Start game" early, or the
+  // poll beat the countdown ticker to it) -> go straight in, as the countdown promises.
+  // Someone who joins after the start still lands on the lobby.
+  const wasPreStart=!!pGameState&&pGameState.started===false;
+  pGameState=s;
+  if(wasPreStart&&s.started===true&&pState.screen==="lobby")pState.screen="game";
+  if(s.theme)applyTheme(s.theme);
+}
 async function pRefresh(){const t=pToken();if(!t)return;try{const s=await rpc("get_state",{p_session:t});
   if(s.error==="bad_session"){localStorage.removeItem("q_token");pState.screen="join";}
   else{applyState(s);if(!["lobby","game","done"].includes(pState.screen))pState.screen=s.finished?"done":"game";}
@@ -272,7 +281,6 @@ function inviteCard(teamName){
 // ---- Lobby ----
 function pLobby(){
   const st=pGameState,g=pState.active||{};
-  const exp=st.expires_at?Math.max(0,(Date.parse(st.expires_at)-serverNow())/1000):null;
   const others=(g.teams||[]).map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;border-radius:var(--th-rInput);background:var(--th-field);border:1px solid var(--th-line);">
     <span style="font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(t.name)}</span><span style="font-size:11.5px;color:var(--th-muted);">${t.players} ${t.players===1?"member":"members"}</span></div>`).join("");
   $("pscreen").innerHTML=`<div style="padding:30px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
@@ -287,8 +295,8 @@ function pLobby(){
     ${inviteCard(pState.myTeam||st.team.name)}
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:22px;text-align:center;">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);">Game in progress</div>
-      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:48px;font-variant-numeric:tabular-nums;color:var(--th-primary);margin-top:6px;letter-spacing:.01em;">${exp!=null?fmt(exp):"—"}</div>
-      <div style="font-size:12px;color:var(--th-inkSoft);margin-top:4px;">time remaining</div></div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:48px;font-variant-numeric:tabular-nums;color:var(--th-primary);margin-top:6px;letter-spacing:.01em;">${fmt((serverNow()-Date.parse(pElapsedBase(st)))/1000)}</div>
+      <div style="font-size:12px;color:var(--th-inkSoft);margin-top:4px;">elapsed — the game runs until every team finishes</div></div>
     <button onclick="pState.screen='game';renderPlayer()" style="border:0;cursor:pointer;padding:15px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15.5px;background:var(--th-primary);color:var(--th-onPrimary);">Enter the game</button>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">In the lobby</div>

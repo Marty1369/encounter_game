@@ -35,3 +35,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# QA rig throwaway (Playwright browsers/caches downloaded by the QA agent)
+.pw-browsers/
+.npm-cache/
+.playwright-daemon/
+.localappdata/
+scripts/.qa_game.json
