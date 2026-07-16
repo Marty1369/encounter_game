@@ -18,9 +18,10 @@
   input:focus,select:focus,textarea:focus{outline:2px solid #a1a1aa;outline-offset:0}
   button{font-family:inherit}
   .hidden{display:none!important}
-  /* wizard Questions step: list | editor | live preview */
-  .wizGrid{display:grid;grid-template-columns:minmax(200px,270px) minmax(300px,1fr) minmax(290px,390px);gap:16px;align-items:start}
-  @media (max-width:1400px){.wizGrid{grid-template-columns:minmax(190px,240px) 1fr}.wizPrev{grid-column:2}}
+  /* wizard Questions step: list | editor | live preview (preview width is drag-resizable) */
+  .wizGrid{display:grid;grid-template-columns:minmax(200px,270px) minmax(300px,1fr) var(--prevW,340px);gap:16px;align-items:start}
+  .wizGrid.noPrev{grid-template-columns:minmax(200px,270px) 1fr}
+  @media (max-width:1200px){.wizGrid{grid-template-columns:minmax(190px,240px) 1fr}.wizPrev{grid-column:2}}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   @keyframes popin{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
   @keyframes fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -66,6 +67,17 @@
     <div style="padding:16px 20px;background:#b91c1c;color:#fff;display:flex;align-items:center;gap:9px;"><span style="font-size:20px;">⚠️</span><span style="font-weight:700;font-size:15px;">Task cancelled</span></div>
     <div id="noticePopBody" style="padding:18px 20px;font-size:14px;line-height:1.55;color:#27272a;white-space:pre-line;"></div>
     <div style="padding:0 20px 18px;"><button onclick="dismissNotice()" style="width:100%;border:0;cursor:pointer;padding:12px;border-radius:10px;background:#18181b;color:#fff;font-weight:600;font-size:14px;">Got it</button></div>
+  </div>
+</div>
+
+<!-- Join QR (admin shows this so captains can create their teams) -->
+<div id="qrPop" class="hidden" style="position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeQR()">
+  <div style="background:#fff;border-radius:16px;padding:26px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;max-width:min(460px,100%);">
+    <div id="qrTitle" style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;color:#18181b;"></div>
+    <div id="qrBox" style="width:300px;height:300px;max-width:68vw;max-height:68vw;display:grid;place-items:center;"></div>
+    <div id="qrCode" style="font-family:'Space Grotesk',monospace;font-weight:700;font-size:30px;letter-spacing:.3em;padding-left:.3em;color:#18181b;"></div>
+    <div id="qrHint" style="font-size:12.5px;color:#71717a;line-height:1.5;"></div>
+    <button onclick="closeQR()" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 18px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Close</button>
   </div>
 </div>
 
@@ -162,6 +174,11 @@ async function pSubmit(){
   renderPlayer();
 }
 
+// Total time since the game started — a per-question timer resets to 00:00 on every new
+// challenge, which reads as a broken clock while you're solving.
+const pElapsedBase=st=>(st&&(st.starts_at||st.activated_at))||null;
+// Hints unlock relative to when THIS challenge became active (starts_at only as a guard).
+const hintBase=st=>Date.parse((st&&(st.activated_at||st.starts_at))||0)||0;
 function renderPlayer(){
   const s=pState,scr=$("pscreen");
   // any screen other than join owns pscreen outright — drop the cached join DOM
@@ -366,6 +383,15 @@ function videoEmbed(u){                               // → iframe src, or null
   return null;
 }
 const isFile=(u,ext)=>new RegExp("\\.("+ext+")(\\?|#|$)","i").test(String(u));
+let _vidN=0;
+// Fullscreen play — iOS Safari only exposes webkitEnterFullscreen on the <video> itself.
+function pPlayFs(id){
+  const box=$(id); if(!box)return;
+  const v=box.querySelector("video"), t=v||box;
+  const req=t.requestFullscreen||t.webkitRequestFullscreen||t.webkitEnterFullscreen||t.msRequestFullscreen;
+  try{ if(req)req.call(t); }catch{}
+  if(v){try{const p=v.play();if(p&&p.catch)p.catch(()=>{});}catch{}}
+}
 // one themed content block (text/image/video/audio/link) — used by hints, questions and the wizard Review
 function pBlock(b){
   if(b.type==="text")return `<div style="font-size:14px;line-height:1.55;color:var(--th-ink);white-space:pre-line;">${esc(b.text!=null?b.text:(b.content||""))}</div>`;
@@ -375,9 +401,15 @@ function pBlock(b){
     return `<img src="${esc(imgSrc(url))}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);display:block;background:var(--th-field);">`
       +`<a href="${esc(safe)}" target="_blank" rel="noopener" style="display:none;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);text-decoration:none;color:var(--th-ink);font-weight:600;font-size:12.5px;">↗ Open image</a>`;
   if(b.type==="video"){
-    const emb=videoEmbed(url);
-    if(emb)return `<div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:var(--th-rInput);overflow:hidden;border:1px solid var(--th-line);background:#000;"><iframe src="${esc(emb)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe></div>`;
-    if(isFile(url,"mp4|webm|ogg|mov"))return `<video controls playsinline preload="metadata" src="${esc(safe)}" style="width:100%;border-radius:var(--th-rInput);border:1px solid var(--th-line);background:#000;display:block;"></video>`;
+    const emb=videoEmbed(url), id="vid"+(++_vidN);
+    const inner=emb
+      ? `<iframe src="${esc(emb)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe>`
+      : (isFile(url,"mp4|webm|ogg|mov")
+          ? `<video controls playsinline preload="metadata" src="${esc(safe)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;"></video>`
+          : null);
+    if(inner)return `<div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+      <div id="${id}" style="position:relative;width:100%;aspect-ratio:16/9;margin:0 auto;border-radius:var(--th-rInput);overflow:hidden;border:1px solid var(--th-line);background:#000;">${inner}</div>
+      <button onclick="pPlayFs('${id}')" style="border:0;cursor:pointer;padding:12px 14px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:13.5px;background:var(--th-primary);color:var(--th-onPrimary);display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;">▶ PLAY VIDEO — fullscreen</button></div>`;
   }
   if(b.type==="audio"&&isFile(url,"mp3|wav|ogg|m4a|aac"))
     return `<audio controls preload="metadata" src="${esc(safe)}" style="width:100%;"></audio>`;
@@ -391,10 +423,6 @@ function pGame(){
   const wasFocus=!!(document.activeElement&&document.activeElement.id==="answer"); // restore, never steal
   if(!q){$("pscreen").innerHTML=`<div style="padding:40px 24px;text-align:center;color:var(--th-inkSoft);animation:fadeup .25s ease;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;">Getting things ready…</div><div style="font-size:13.5px;color:var(--th-muted);margin-top:8px;">This game has no challenges yet.</div></div>`;return;}
   if(pGame._lastOrd!==q.ord){pFeedback=null;pAnswer="";pGame._lastOrd=q.ord;}
-  // media delegates to pBlock so questions, hints and the wizard Review all render identically
-  const blocks=(q.blocks||[]).map(b=>b.type==="text"
-    ? `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);white-space:pre-line;">${esc(b.text)}</div>`
-    : pBlock(b)).join("");
   const hints=(st.hints||[]).sort((a,b)=>a.ord-b.ord);
   for(const h of hints)if(h.unlocked&&!pRevealed.has(h.id)){pRevealed.add(h.id);rpc("mark_hint_revealed",{p_session:pToken(),p_hint_id:h.id}).catch(()=>{});}
   const hintHtml=hints.length?hints.map(h=>{
@@ -404,17 +432,33 @@ function pGame(){
       const hb=(h.blocks&&h.blocks.length)?h.blocks.map(pBlock).join("")
         :((h.text?`<div style="font-size:14px;color:var(--th-ink);line-height:1.55;">${esc(h.text)}</div>`:"")+(h.media_type&&h.media_url?pBlock({type:h.media_type,url:h.media_url}):""));
       body=`<div style="margin-top:7px;display:flex;flex-direction:column;gap:8px;">${hb}</div>`;
-    }else{const rem=(Date.parse(st.activated_at)+h.reveal_after_min*60000-serverNow())/1000;badge="unlocks in "+fmt(rem>0?rem:0);badgeColor="var(--th-muted)";if(rem<=0)setTimeout(()=>{if(!typingInFrame())pRefresh();},400);}
+    }else{const rem=(hintBase(st)+h.reveal_after_min*60000-serverNow())/1000;badge="unlocks in "+fmt(rem>0?rem:0);badgeColor="var(--th-muted)";if(rem<=0)setTimeout(pRefresh,400);}
     return `<div style="border-top:1px solid var(--th-line);padding:11px 2px 4px;"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">
       <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${open?"var(--th-ink)":"var(--th-muted)"};">${title}</span>
-      <span ${open?"":`class="pHintCd" data-unlock="${Date.parse(st.activated_at)+h.reveal_after_min*60000}"`} style="font-size:11px;font-weight:600;color:${badgeColor};white-space:nowrap;font-variant-numeric:tabular-nums;">${badge}</span></div>${body}</div>`;
+      <span ${open?"":`class="pHintCd" data-unlock="${hintBase(st)+h.reveal_after_min*60000}"`} style="font-size:11px;font-weight:600;color:${badgeColor};white-space:nowrap;font-variant-numeric:tabular-nums;">${badge}</span></div>${body}</div>`;
   }).join(""):`<div style="font-size:12.5px;color:var(--th-muted);">No hints for this challenge.</div>`;
   const fb=pFeedback?`<div style="font-size:13px;font-weight:600;text-align:center;padding:9px 12px;border-radius:var(--th-rInput);background:${pFeedback.bg};color:${pFeedback.color};animation:${pFeedback.anim};">${esc(pFeedback.msg)}</div>`:"";
+  // Only rebuild when the challenge itself changes. A blanket rebuild every poll restarted any
+  // playing video and made the screen flicker; hints/feedback get patched in place instead.
+  // Signatures cover everything rendered, so a host-side edit still repaints — they only stay
+  // equal when the content genuinely hasn't changed, which is what protects a playing video.
+  const hsig=JSON.stringify(hints);
+  const sig=JSON.stringify([q.ord,st.total_questions,q.title,q.intro,q.info,q.blocks,st.team&&st.team.name]);
+  if(pGame._sig===sig&&$("answer")){
+    if(pGame._hsig!==hsig){const hh=$("pHints");if(hh)hh.innerHTML=hintHtml;pGame._hsig=hsig;}
+    if(pGame._fb!==fb){const fe=$("pFb");if(fe)fe.innerHTML=fb;pGame._fb=fb;}
+    pollStandings();return;
+  }
+  pGame._sig=sig;pGame._hsig=hsig;pGame._fb=fb;
+  // media delegates to pBlock so questions, hints and the wizard Review all render identically
+  const blocks=(q.blocks||[]).map(b=>b.type==="text"
+    ? `<div style="font-size:15.5px;line-height:1.6;color:var(--th-ink);white-space:pre-line;">${esc(b.text)}</div>`
+    : pBlock(b)).join("");
   $("pscreen").innerHTML=`<div style="padding:26px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
       <div><div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--th-muted);">${esc(st.team.name)}</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:13px;margin-top:4px;color:var(--th-inkSoft);letter-spacing:.04em;">Challenge ${q.ord} of ${st.total_questions}</div></div>
-      <div id="pElapsed" style="font-family:'Space Grotesk',monospace;font-weight:600;font-size:14px;color:var(--th-primary);white-space:nowrap;font-variant-numeric:tabular-nums;"></div></div>
+      <div id="pElapsed" style="font-family:'Space Grotesk',monospace;font-weight:600;font-size:14px;color:var(--th-primary);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt((serverNow()-Date.parse(pElapsedBase(st)))/1000)}</div></div>
     <div style="height:3px;border-radius:999px;background:var(--th-line);overflow:hidden;"><div style="height:100%;background:var(--th-primary);transition:width .4s ease;width:${(q.ord-1)/st.total_questions*100}%;"></div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:12px;">
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;line-height:1.2;letter-spacing:var(--th-displayTracking);">${esc(q.title)}</div>
@@ -424,11 +468,11 @@ function pGame(){
       <div style="display:flex;gap:8px;margin-top:2px;">
         <input id="answer" value="${esc(pAnswer)}" oninput="pAnswer=this.value" onkeydown="if(event.key==='Enter')pSubmit()" placeholder="Your answer" style="flex:1;min-width:0;padding:13px 15px;font-size:15.5px;border:1px solid var(--th-line);border-radius:var(--th-rInput);background:var(--th-field);color:var(--th-ink);">
         <button onclick="pSubmit()" style="border:0;cursor:pointer;padding:0 22px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:14.5px;background:var(--th-primary);color:var(--th-onPrimary);min-height:48px;">Submit</button></div>
-      ${fb}
+      <div id="pFb">${fb}</div>
       <div style="font-size:11px;color:var(--th-muted);text-align:center;">Shared progress — any teammate's correct answer advances the team.</div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Hints</div>
-      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div>${hintHtml}</div>
+      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div><div id="pHints">${hintHtml}</div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Standings</div>
       <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">live</span></div>
@@ -504,16 +548,12 @@ setInterval(()=>{if(role!=="player"||!pGameState||pGameState.finished)return;
     if(rem<=0){pState.screen="game";pRefresh();}
     return;
   }
-  if(!pGameState.activated_at)return;
-  const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(pGameState.activated_at))/1000);
-  let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due&&!typingInFrame())pRefresh();},1000);
-// Don't rebuild the screen out from under someone who is typing — it drops focus and
-// closes the mobile keyboard. The refresh just waits for the next tick.
-function typingInFrame(){
-  const ae=document.activeElement;
-  return !!(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")&&$("frame")&&$("frame").contains(ae));
-}
-setInterval(()=>{if(role==="player"&&pToken()){if(!typingInFrame())pRefresh();drain();pNotices();}},10000);
+  const base=pElapsedBase(pGameState); if(!base)return;
+  const el=$("pElapsed");if(el)el.textContent=fmt((serverNow()-Date.parse(base))/1000);
+  let due=false;document.querySelectorAll(".pHintCd").forEach(cd=>{const rem=(+cd.dataset.unlock-serverNow())/1000;cd.textContent=rem>0?("unlocks in "+fmt(rem)):"unlocking…";if(rem<=0)due=true;});if(due)pRefresh();},1000);
+// Always poll: pause / game-over must reach the player even while they're typing. Safe to do
+// now because pGame() only rebuilds when the challenge actually changed, so focus survives.
+setInterval(()=>{if(role==="player"&&pToken()){pRefresh();drain();pNotices();}},10000);
 
 // admin side-menu live timer: counts down to scheduled start, then counts elapsed
 function adminTimerText(){
@@ -571,12 +611,15 @@ function sideMenu(){
 }
 function adminGo(v){if(v!=="monitor"&&monTimer){clearInterval(monTimer);monTimer=null;}adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
 function drawAdmin(){
+  const _ls=$("wizList"), _keep=_ls?_ls.scrollTop:null;   // selecting a question must not jump the list back to the top
   let main="";
   if(adminView==="games")main=viewGames();
   else if(adminView==="wizard")main=viewWizard();
   else if(adminView==="themes")main=viewThemes();
   else if(adminView==="monitor")main=viewMonitor();
-  $("admin").innerHTML=`<div style="max-width:1280px;margin:0 auto;padding:26px 22px 90px;display:grid;grid-template-columns:210px 1fr;gap:22px;align-items:start;">${sideMenu()}<main style="display:flex;flex-direction:column;gap:18px;min-width:0;">${main}</main></div>`;
+  const wide=adminView==="wizard";                        // the wizard earns the whole monitor
+  $("admin").innerHTML=`<div style="max-width:${wide?1800:1280}px;margin:0 auto;padding:26px 22px 90px;display:grid;grid-template-columns:210px 1fr;gap:22px;align-items:start;">${sideMenu()}<main style="display:flex;flex-direction:column;gap:18px;min-width:0;">${main}</main></div>`;
+  if(_keep!=null){const nl=$("wizList");if(nl)nl.scrollTop=_keep;}
   if(adminView==="monitor")startMon();
 }
 const dot={draft:["#a1a1aa","Draft"],ready:["#2563eb","Ready"],live:["#15803d","Live"],ended:["#b91c1c","Ended"]};
@@ -703,7 +746,9 @@ function controlsPanel(g){
     <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></span></div>
     <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
-    <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>`;
+    <div style="display:flex;gap:7px;flex-wrap:wrap;">
+      <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button>
+      <button onclick="showJoinQR('${g.pin}')" title="Show this to captains so they can create their teams" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Join QR</button></div></div>`;
   let life="";
   if(ended){ return `<div style="border-top:1px solid #f0f0f1;padding-top:16px;display:flex;flex-direction:column;gap:12px;">
     <div style="font-size:13px;color:#71717a;font-weight:600;">This game has ended — the leaderboard below is final. Duplicate it to run again.</div>
@@ -730,6 +775,16 @@ function controlsPanel(g){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
   </div>`;
 }
+// Captains scan this to create their team; once inside, each captain's own lobby/countdown
+// card carries a per-team QR (?pin=..&team=..) for their teammates.
+function showJoinQR(pin){
+  $("qrTitle").textContent="Scan to join the game";
+  $("qrCode").textContent=pin;
+  $("qrHint").textContent="Captains: scan this (or type the code) to create your team. Inside, each captain gets their own team QR to share.";
+  $("qrPop").classList.remove("hidden");
+  renderQR("qrBox",location.origin+location.pathname+"?pin="+encodeURIComponent(pin));
+}
+function closeQR(){$("qrPop").classList.add("hidden");}
 async function activateGame(id){await a("admin_activate",{p_game:id});toast("Registration open");adminData=await a("admin_list");selectGame(id);}
 async function pauseGame(id){const m=prompt("Message players see while paused:","We've paused briefly — hang tight!");if(m===null)return;await a("admin_pause",{p_game:id,p_message:m});toast("Game paused");adminData=await a("admin_list");selectGame(id);}
 async function resumeGame(id){await a("admin_resume",{p_game:id});toast("Game resumed");adminData=await a("admin_list");selectGame(id);}
@@ -743,6 +798,20 @@ async function showLeaderboard(id){const g=adminData.games.find(x=>x.id===id)||s
 async function delGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};if(!confirm('Delete "'+(g.name||"this game")+'"?'))return;await a("admin_delete_game",{p_game:id});selGame=null;adminData=await a("admin_list");drawAdmin();}
 
 // ---- Wizard ----
+let wizPrevOn=localStorage.getItem("q_wizPrev")!=="0";
+let _prevW=Math.max(260,Math.min(900,+(localStorage.getItem("q_prevW")||340)));
+function toggleWizPrev(){wizPrevOn=!wizPrevOn;localStorage.setItem("q_wizPrev",wizPrevOn?"1":"0");drawAdmin();}
+function startPrevResize(e){                       // drag the preview wider/narrower
+  e.preventDefault();
+  const grid=document.querySelector(".wizGrid"); if(!grid)return;
+  const x0=e.clientX,w0=_prevW;
+  const mv=ev=>{_prevW=Math.max(260,Math.min(900,w0+(x0-ev.clientX)));grid.style.setProperty("--prevW",_prevW+"px");};
+  const up=()=>{                                    // also on pointercancel, or a lost drag keeps resizing
+    document.removeEventListener("pointermove",mv);document.removeEventListener("pointerup",up);
+    document.removeEventListener("pointercancel",up);localStorage.setItem("q_prevW",String(_prevW));};
+  document.addEventListener("pointermove",mv);document.addEventListener("pointerup",up);
+  document.addEventListener("pointercancel",up);
+}
 function blankQ(){return{title:"",answer:"",intro:"",info:"",case_sensitive:false,blocks:[],hints:[]};}
 function moveWHint(i,d){const n=i+d,hs=wiz.questions[wiz.sel].hints;if(n<0||n>=hs.length)return;[hs[i],hs[n]]=[hs[n],hs[i]];drawAdmin();}
 function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
@@ -766,6 +835,7 @@ function viewWizard(){
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"><button onclick="downloadXlsxTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">XLSX template</button>
       <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import XLSX<input type="file" accept=".xlsx,.xls" onchange="importXlsx(event)" style="display:none;"></label>
       <button onclick="exportWizXlsx()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">Export XLSX</button>
+      <button onclick="toggleWizPrev()" title="Show/hide the live question preview" style="border:1px solid ${wizPrevOn?"#18181b":"#e4e4e7"};cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:${wizPrevOn?"#18181b":"#52525b"};">Preview: ${wizPrevOn?"On":"Off"}</button>
       <span style="width:1px;height:20px;background:#e4e4e7;margin:0 3px;"></span>
       <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">Save as draft</button>
       <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Save as ready</button>
@@ -792,17 +862,21 @@ function wizStep2(){
   const q=wiz.questions[wiz.sel];
   const editor=q?wqEditor(q):`<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">Select or add a question.</div>`;
   const tk=(adminData.themes.find(t=>t.id===wiz.theme_id)||{}).tokens||{};
-  const prev=q?`<div class="wizPrev" style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-shrink:0;"><strong style="font-size:13px;color:#18181b;">Preview</strong>
-      <span style="font-size:9.5px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.08em;">as players see it</span></div>
+  const showPrev=wizPrevOn&&!!q;
+  const prev=showPrev?`<div class="wizPrev" style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:8px;">
+        <span style="display:flex;align-items:center;gap:7px;min-width:0;">
+          <span onpointerdown="startPrevResize(event)" title="Drag to resize" style="cursor:col-resize;user-select:none;touch-action:none;color:#a1a1aa;font-size:13px;line-height:1;">⣿</span>
+          <strong style="font-size:13px;color:#18181b;">Preview</strong></span>
+        <button onclick="toggleWizPrev()" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#52525b;flex-shrink:0;">Hide</button></div>
       <div id="wizPrevBody" style="${themeVars(tk)}font-family:var(--th-fontBody);background:var(--th-bg);border:1px solid #e4e4e7;border-radius:13px;padding:14px;overflow-y:auto;min-height:0;">${wizPreviewQ(q,wiz.sel,wiz.questions.length)}</div></div>`:"";
   // The list is pinned and scrolls on its own, so scrolling a long question's data
   // never drags the question list away.
-  return `<div class="wizGrid">
+  return `<div class="wizGrid${showPrev?"":" noPrev"}" style="--prevW:${_prevW}px;">
     <div style="display:flex;flex-direction:column;gap:8px;position:sticky;top:78px;max-height:calc(100vh - 96px);min-height:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0;"><strong style="font-size:13px;color:#18181b;">Questions</strong>
       <button onclick="addWQ()" style="border:0;cursor:pointer;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Add</button></div>
-      <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;padding-right:3px;">
+      <div id="wizList" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;padding-right:3px;">
         ${list||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">No questions yet — add one or import an XLSX.</div>'}</div></div>${editor}${prev}</div>`;
 }
 // Repaint just the preview — never drawAdmin() from an oninput, that would re-create the
