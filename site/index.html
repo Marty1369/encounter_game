@@ -660,6 +660,7 @@ function selectedDetail(){
     btn("Edit in wizard",`editWiz('${g.id}')`),
     btn("Rename",`renameGame('${g.id}')`),
     btn("Duplicate",`duplicateGame('${g.id}')`),
+    btn("Export XLSX",`exportGameXlsx('${g.id}')`),
     btn("Leaderboard",`showLeaderboard('${g.id}')`),
     btn("Delete",`delGame('${g.id}')`,true),
   ];
@@ -761,6 +762,7 @@ function viewWizard(){
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Basics → Questions &amp; hints → Theme → Review.</p></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"><button onclick="downloadXlsxTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">XLSX template</button>
       <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import XLSX<input type="file" accept=".xlsx,.xls" onchange="importXlsx(event)" style="display:none;"></label>
+      <button onclick="exportWizXlsx()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">Export XLSX</button>
       <span style="width:1px;height:20px;background:#e4e4e7;margin:0 3px;"></span>
       <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">Save as draft</button>
       <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Save as ready</button>
@@ -918,43 +920,126 @@ async function saveWiz(status){
   else await a("admin_set_status",{p_game:res.id,p_status:"draft"});
   toast("Saved · PIN "+res.pin);selGame=null;adminData=await a("admin_list");adminGo("games");
 }
-function downloadXlsxTemplate(){
-  if(typeof XLSX==="undefined"){toast("Spreadsheet library still loading — try again in a moment");return;}
+// ---- XLSX template / export -------------------------------------------------
+// Export writes exactly what import reads, so a game round-trips losslessly:
+//  * extra blocks repeat the Title on further rows (block order preserved)
+//  * HintNo groups several rows into one hint
+const _slug=s=>String(s||"game").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"game";
+const _mtOut=b=>b.type==="url"?"link":b.type;
+// Pack blocks into rows, collapsing a text-then-media pair onto one row (import reads it back
+// in that same order); anything else gets its own row so ordering survives.
+function _packBlocks(list){
+  const a=list||[],rows=[];let i=0;
+  while(i<a.length){
+    const b=a[i];
+    if(b.type==="text"&&a[i+1]&&a[i+1].type!=="text"){rows.push({text:b.content,media:a[i+1]});i+=2;}
+    else if(b.type==="text"){rows.push({text:b.content,media:null});i+=1;}
+    else{rows.push({text:"",media:b});i+=1;}
+  }
+  if(!rows.length)rows.push({text:"",media:null});
+  return rows;
+}
+function buildGameWb(name,description,maxTeams,qs){
   const wb=XLSX.utils.book_new();
-  const q=[["Title","Intro","Answer","Info","CaseSensitive","Text","MediaType","MediaURL"],
-    ["Harbor clue","A short intro to set the scene.","ANCHOR","Stay on the footpath.","no","Look near the docks for a brass plaque.","image","https://drive.google.com/uc?id=FILE_ID"]];
-  const h=[["Question","RevealAfterMin","Text","MediaType","MediaURL"],
-    ["Harbor clue",5,"Check the blue building.","",""],
-    ["Harbor clue",10,"Zoom into the map.","image","https://photos.app.goo.gl/EXAMPLE"]];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(q),"Questions");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(h),"Hints");
+  const G=[["Name","Description","MaxTeams"],[name||"",description||"",maxTeams||20]];
+  const Q=[["Title","Intro","Answer","Info","CaseSensitive","Text","MediaType","MediaURL"]];
+  const H=[["Question","HintNo","RevealAfterMin","Text","MediaType","MediaURL"]];
+  (qs||[]).forEach(q=>{
+    _packBlocks(q.blocks).forEach((r,i)=>Q.push([q.title||"",i?"":(q.intro||""),i?"":(q.answer||""),i?"":(q.info||""),
+      i?"":(q.case_sensitive?"yes":"no"),r.text||"",r.media?_mtOut(r.media):"",r.media?r.media.content:""]));
+    (q.hints||[]).forEach((h,hi)=>_packBlocks(h.blocks).forEach((r,i)=>
+      H.push([q.title||"",hi+1,i?"":(Number(h.reveal_after_min)||0),r.text||"",r.media?_mtOut(r.media):"",r.media?r.media.content:""])));
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(G),"Game");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(Q),"Questions");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(H),"Hints");
+  return wb;
+}
+// admin_get_game / DB shape ({type,text|url}) -> wizard shape ({type,content})
+function gameToWizQs(g){
+  return (g.questions||[]).map(q=>({
+    title:q.title||"",intro:q.intro||"",answer:q.answer||"",info:q.info||"",case_sensitive:!!q.case_sensitive,
+    blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),
+    hints:(q.hints||[]).map(h=>{
+      let bl=(h.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""}));
+      if(!bl.length){if(h.text)bl.push({type:"text",content:h.text});if(h.media_type&&h.media_url)bl.push({type:h.media_type,content:h.media_url});}
+      return {reveal_after_min:h.reveal_after_min,blocks:bl};})}));
+}
+const _xlsxReady=()=>{if(typeof XLSX==="undefined"){toast("Spreadsheet library still loading — try again in a moment");return false;}return true;};
+function exportWizXlsx(){                      // export what's currently in the wizard
+  if(!_xlsxReady())return;
+  XLSX.writeFile(buildGameWb(wiz.name,wiz.description,wiz.max_teams,wiz.questions),"questline-"+_slug(wiz.name)+".xlsx");
+  toast("Exported "+wiz.questions.length+" questions");
+}
+async function exportGameXlsx(id){             // export a saved game, answers and links included
+  if(!_xlsxReady())return;
+  let g;try{g=await a("admin_get_game",{p_game:id});}catch{toast("Export failed");return;}
+  if(!g||g.error){toast("Export failed");return;}
+  const qs=gameToWizQs(g);
+  XLSX.writeFile(buildGameWb(g.name,g.description,g.max_teams,qs),"questline-"+_slug(g.name)+".xlsx");
+  toast("Exported "+qs.length+" questions, "+qs.reduce((n,q)=>n+q.hints.length,0)+" hints");
+}
+function downloadXlsxTemplate(){
+  if(!_xlsxReady())return;
+  const wb=buildGameWb("My game","A short story to set the mood.",20,[
+    {title:"Harbor clue",intro:"A short intro to set the scene.",answer:"ANCHOR",info:"Stay on the footpath.",case_sensitive:false,
+     blocks:[{type:"text",content:"Look near the docks for a brass plaque."},{type:"image",content:"https://drive.google.com/uc?id=FILE_ID"}],
+     hints:[{reveal_after_min:5,blocks:[{type:"text",content:"Check the blue building."}]},
+            {reveal_after_min:10,blocks:[{type:"text",content:"Zoom into the map."},{type:"image",content:"https://drive.google.com/uc?id=FILE_ID"}]}]}]);
   XLSX.writeFile(wb,"questline-template.xlsx");
 }
 const _mt=v=>{const s=String(v||"").trim().toLowerCase();return ["image","video","audio","link","url"].includes(s)?(s==="url"?"link":s):"";};
+// Pure parser (no DOM) — reads exactly what buildGameWb writes. Kept separate so the
+// export→import round-trip can be tested outside the browser.
+function parseGameWb(wb){
+  const findSheet=n=>wb.SheetNames.find(s=>s.toLowerCase()===n)||wb.SheetNames.find(s=>s.toLowerCase().includes(n));
+  const qsn=findSheet("questions"); if(!qsn)throw new Error("No 'Questions' sheet found");
+  const qs=wb.Sheets[qsn], hs=wb.Sheets[findSheet("hints")];
+  const get=(r,k)=>{const kk=Object.keys(r).find(x=>x.toLowerCase().replace(/\s/g,"")===k);return kk?String(r[kk]).trim():"";};
+  const addBlocks=(r,arr)=>{                       // one row may carry a text and/or a media block
+    const t=get(r,"text"); if(t)arr.push({type:"text",content:t});
+    const mt=_mt(get(r,"mediatype")), mu=get(r,"mediaurl"); if(mt&&mu)arr.push({type:mt,content:mu});
+  };
+  let meta=null;
+  const gsn=findSheet("game");
+  if(gsn){
+    const g0=(XLSX.utils.sheet_to_json(wb.Sheets[gsn],{defval:""})[0])||{};
+    meta={name:get(g0,"name"),description:get(g0,"description"),max_teams:+get(g0,"maxteams")||0};
+  }
+  const byTitle={},added=[];
+  XLSX.utils.sheet_to_json(qs,{defval:""}).filter(r=>get(r,"title")).forEach(r=>{
+    const title=get(r,"title"),key=title.toLowerCase();
+    let q=byTitle[key];
+    if(!q){                                        // first row for this title = the question itself
+      q={title,intro:get(r,"intro"),answer:get(r,"answer"),info:get(r,"info"),
+         case_sensitive:/^(y|yes|true|1|case)/i.test(get(r,"casesensitive")),blocks:[],hints:[]};
+      byTitle[key]=q; added.push(q);
+    }
+    addBlocks(r,q.blocks);                         // repeated title = extra blocks, in row order
+  });
+  const hByKey={};
+  (hs?XLSX.utils.sheet_to_json(hs,{defval:""}):[]).forEach(r=>{
+    const q=byTitle[get(r,"question").toLowerCase()]; if(!q)return;
+    const no=get(r,"hintno"), key=q.title.toLowerCase()+"|"+no;
+    let h=no?hByKey[key]:null;                     // same HintNo = more blocks for that hint
+    if(!h){
+      h={reveal_after_min:+get(r,"revealaftermin")||0,blocks:[],_bt:"text",_bc:""};
+      q.hints.push(h); if(no)hByKey[key]=h;        // no HintNo (old sheets) = one hint per row
+    }
+    addBlocks(r,h.blocks);
+  });
+  return {meta,questions:added};
+}
 function importXlsx(ev){const f=ev.target.files[0];if(!f)return;
-  if(typeof XLSX==="undefined"){toast("Spreadsheet library still loading — try again");return;}
+  if(!_xlsxReady())return;
   const rd=new FileReader();
   rd.onload=()=>{try{
-    const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"});
-    const findSheet=n=>wb.SheetNames.find(s=>s.toLowerCase()===n)||wb.SheetNames.find(s=>s.toLowerCase().includes(n));
-    const qs=wb.Sheets[findSheet("questions")]; if(!qs){toast("No 'Questions' sheet found");return;}
-    const hs=wb.Sheets[findSheet("hints")];
-    const get=(r,k)=>{const kk=Object.keys(r).find(x=>x.toLowerCase().replace(/\s/g,"")===k);return kk?String(r[kk]).trim():"";};
-    const qrows=XLSX.utils.sheet_to_json(qs,{defval:""}).filter(r=>get(r,"title"));
-    const byTitle={};
-    const added=qrows.map(r=>{
-      const blocks=[]; const t=get(r,"text"); if(t)blocks.push({type:"text",content:t});
-      const mt=_mt(get(r,"mediatype")), mu=get(r,"mediaurl"); if(mt&&mu)blocks.push({type:mt,content:mu});
-      const q={title:get(r,"title"),intro:get(r,"intro"),answer:get(r,"answer"),info:get(r,"info"),
-        case_sensitive:/^(y|yes|true|1|case)/i.test(get(r,"casesensitive")),blocks,hints:[]};
-      byTitle[q.title.toLowerCase()]=q; return q;
-    });
-    (hs?XLSX.utils.sheet_to_json(hs,{defval:""}):[]).forEach(r=>{
-      const q=byTitle[get(r,"question").toLowerCase()]; if(!q)return;
-      const blocks=[]; const t=get(r,"text"); if(t)blocks.push({type:"text",content:t});
-      const mt=_mt(get(r,"mediatype")), mu=get(r,"mediaurl"); if(mt&&mu)blocks.push({type:mt,content:mu});
-      q.hints.push({reveal_after_min:+get(r,"revealaftermin")||0,blocks,_bt:"text",_bc:""});
-    });
+    const {meta,questions:added}=parseGameWb(XLSX.read(new Uint8Array(rd.result),{type:"array"}));
+    if(meta){                                      // only fill what the wizard hasn't got — never clobber
+      if(meta.name&&!String(wiz.name||"").trim())wiz.name=meta.name;
+      if(meta.description&&!String(wiz.description||"").trim())wiz.description=meta.description;
+      if(meta.max_teams)wiz.max_teams=meta.max_teams;
+    }
     added.forEach(q=>wiz.questions.push(q)); wiz.sel=Math.max(0,wiz.questions.length-1); drawAdmin();
     toast("Imported "+added.length+" questions, "+added.reduce((n,q)=>n+q.hints.length,0)+" hints");
   }catch(e){toast("Import failed: "+e.message);}};
