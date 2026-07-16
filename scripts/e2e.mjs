@@ -138,6 +138,13 @@ async function main() {
   ok("duplicate ok", dup.ok === true && !!dup.id);
   const dupGame = await A("admin_get_game", { p_game: dup.id });
   ok("duplicate is draft with same #questions", dupGame.status === "draft" && dupGame.questions.length === 3); // Q2 was discarded => 3
+  // Regression: duplicate used to copy only the legacy text/media_type/media_url columns, so
+  // hints came back with reveal times but NO content. Content lives in blocks.
+  const dupHint = (dupGame.questions[0].hints || [])[0] || {};
+  ok("duplicate keeps hint CONTENT (blocks), not just reveal times",
+     (dupHint.blocks || []).length === 1 && dupHint.blocks[0].text === "it's alpha", JSON.stringify(dupHint));
+  ok("duplicate keeps hint reveal time", dupHint.reveal_after_min === 0, JSON.stringify(dupHint.reveal_after_min));
+  ok("duplicate keeps the question's answer + info", dupGame.questions[0].answer === "alpha" && dupGame.questions[0].info === "Read carefully");
   await A("admin_rename", { p_game: dup.id, p_name: "E2E Copy Renamed" });
   ok("rename applied", (await A("admin_get_game", { p_game: dup.id })).name === "E2E Copy Renamed");
 
