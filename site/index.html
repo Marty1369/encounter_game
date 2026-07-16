@@ -129,7 +129,7 @@ function clockPlus(){ // extend the live game by 1 min (real analogue of the san
   adminData?.games?.filter(g=>g.status==="live").forEach(g=>a("admin_extend",{p_game:g.id,p_minutes:1}));
   toast("Live game clock +1 min");
 }
-function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null};pView="game";pGameState=null;localStorage.removeItem("q_token");localStorage.removeItem("q_pin");localStorage.removeItem("q_outbox");renderPlayer();}
+function resetView(){pState={screen:"join",pin:"",gamePin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null};pView="game";pGameState=null;localStorage.removeItem("q_token");localStorage.removeItem("q_pin");localStorage.removeItem("q_outbox");renderPlayer();}
 
 // ===================== PLAYER =====================
 const TH=["primary","onPrimary","bg","ink","inkSoft","muted","card","field","line","fontDisplay","fontBody","displayWeight","displayTracking","rFrame","rCard","rBtn","rInput"];
@@ -138,13 +138,24 @@ function applyTheme(t){if(!t)return;const f=$("frame").style;const kv={primary:"
   for(const k in kv)if(t[k]!=null)f.setProperty(kv[k],t[k]);}
 
 // autoCode = team fragment from an invite QR; autoTeam = the team it resolved to
-let pState={screen:"join",pin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null},pGameState=null,pOffset=0,pRevealed=new Set(),pLookupT;
+let pState={screen:"join",pin:"",gamePin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null},pGameState=null,pOffset=0,pRevealed=new Set(),pLookupT;
 const pToken=()=>localStorage.getItem("q_token");
 const serverNow=()=>Date.now()+pOffset;
 
 async function pLookup(){
-  const pin=pState.pin.trim(); if(pin.length<4){pState.active=null;pState.autoTeam=null;renderPlayer();return;}
-  try{const g=await rpc("get_game_by_pin",{p_pin:pin});if(pState.pin.trim()!==pin)return;pState.active=g.error?null:g;if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);}catch{if(pState.pin.trim()===pin)pState.active=null;}
+  const raw=pState.pin.trim();
+  // A team joining code is "GAMEPIN-abc123": the game pin plus the team's id fragment. Typing it
+  // does exactly what scanning that team's QR does — straight into the team, no picker.
+  const m=raw.match(/^([A-Za-z0-9]{4,12})[\s-]+([0-9a-fA-F]{6})$/);
+  const pin=m?m[1]:raw;
+  pState.gamePin=pin;                                        // the bare pin — what joining uses
+  if(m)pState.autoCode=m[2].toLowerCase();
+  if(pin.length<4){pState.active=null;pState.autoTeam=null;renderPlayer();return;}
+  try{const g=await rpc("get_game_by_pin",{p_pin:pin});
+    if(pState.pin.trim()!==raw)return;                       // they typed on; this reply is stale
+    pState.active=g.error?null:g;
+    if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);
+  }catch{if(pState.pin.trim()===raw)pState.active=null;}
   resolveAutoTeam();
   renderPlayer();
 }
@@ -163,9 +174,12 @@ async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pSta
 function pJoinIndex(i){const t=(pState.active&&pState.active.teams||[])[i];if(t)pJoin(t.name);}
 async function pJoin(team){
   const t=(team||pState.team||"").trim(); if(!t)return;
-  try{const res=await rpc("join_game",{p_pin:pState.pin,p_team:t,p_name:pState.name});
+  // Always the bare game pin: the field may hold a team joining code ("PIN-abc123"), and q_pin
+  // feeds the invite QR and the leaderboard lookups.
+  const pin=(pState.gamePin||pState.pin||"").trim();
+  try{const res=await rpc("join_game",{p_pin:pin,p_team:t,p_name:pState.name});
     if(res.error){toast(joinErr(res.error));return;}
-    localStorage.setItem("q_token",res.session_token);localStorage.setItem("q_pin",pState.pin.toUpperCase());
+    localStorage.setItem("q_token",res.session_token);localStorage.setItem("q_pin",pin.toUpperCase());
     applyState(res.state);pState.myTeam=t;pState.screen="lobby";renderPlayer();
   }catch{toast("Could not join.");}
 }
@@ -792,7 +806,8 @@ function controlsPanel(g){
   const paused=!!g.paused_at;
   const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><strong style="font-size:13px;color:#18181b;">${esc(t.name)}</strong>
-    <span style="display:flex;gap:5px;"><button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">View</button>
+    <span style="display:flex;gap:5px;"><button onclick="showTeamQR('${g.pin}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Join QR</button>
+    <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">View</button>
     <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button></span></div>
     <div style="font-size:11.5px;color:#71717a;margin-top:4px;">${(t.players||[]).map(esc).join(", ")||"—"}</div></div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
@@ -825,14 +840,31 @@ function controlsPanel(g){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
   </div>`;
 }
-// Captains scan this to create their team; once inside, each captain's own lobby/countdown
-// card carries a per-team QR (?pin=..&team=..) for their teammates.
+// Two different QRs, deliberately:
+//  · GAME QR  (?pin=XXXX)            -> captains scan it and CREATE a team.
+//  · TEAM QR  (?pin=XXXX&t=abc123)   -> lands the scanner IN that team, no picker.
+const teamCode=id=>String(id||"").replace(/-/g,"").slice(0,6);
+const teamJoinURL=(pin,teamId)=>location.origin+location.pathname+"?pin="+encodeURIComponent(pin)+"&t="+teamCode(teamId);
 function showJoinQR(pin){
   $("qrTitle").textContent="Scan to join the game";
+  $("qrCode").style.fontSize="30px";
   $("qrCode").textContent=pin;
-  $("qrHint").textContent="Captains: scan this (or type the code) to create your team. Inside, each captain gets their own team QR to share.";
+  $("qrHint").textContent="Captains: scan this (or type the code) to CREATE your team. Each captain then gets their own team QR to share with teammates.";
   $("qrPop").classList.remove("hidden");
   renderQR("qrBox",location.origin+location.pathname+"?pin="+encodeURIComponent(pin));
+}
+// A joining code for a team that is already in the game — hand it to a latecomer and they land
+// straight in that team. Same thing the captain's own invite QR does.
+function showTeamQR(pin,teamId){
+  const t=(((selRoster||{}).teams||[]).find(x=>x.id===teamId))
+        ||(((monLast||{}).teams||[]).find(x=>x.id===teamId))||{};
+  const code=pin+"-"+teamCode(teamId);
+  $("qrTitle").textContent="Join “"+(t.name||"team")+"”";
+  $("qrCode").style.fontSize="21px";
+  $("qrCode").textContent=code;
+  $("qrHint").textContent="Scan, or type this code on the join screen. Anyone who uses it joins “"+(t.name||"this team")+"” directly — no team picking.";
+  $("qrPop").classList.remove("hidden");
+  renderQR("qrBox",teamJoinURL(pin,teamId));
 }
 function closeQR(){$("qrPop").classList.add("hidden");}
 async function activateGame(id){await a("admin_activate",{p_game:id});toast("Registration open");adminData=await a("admin_list");selectGame(id);}
@@ -1253,7 +1285,7 @@ function viewThemes(){
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;">${cards}</div></section>`;
 }
 // ---- Monitor ----
-let monTimer=null,monGameId=null,monExpanded=new Set();
+let monTimer=null,monGameId=null,monExpanded=new Set(),monLast=null;
 function toggleMon(id){if(monExpanded.has(id))monExpanded.delete(id);else monExpanded.add(id);if(monGameId)pollMon(monGameId);}
 function monDetail(t){
   const chips=(t.splits||[]).length?t.splits.map(s=>`<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid #f0f0f1;color:#52525b;white-space:nowrap;"><b style="color:#18181b;">Q${s.ord}</b> ${fmt(s.seconds)}${s.hints?` · ${s.hints}💡`:""}</span>`).join(""):'<span style="font-size:11px;color:#a1a1aa;">No solved tasks yet.</span>';
@@ -1274,6 +1306,7 @@ function viewMonitor(){
 }
 function startMon(){if(monTimer)clearInterval(monTimer);const live=adminData.games.find(g=>g.status==="live");if(!live)return;pollMon(live.id);monTimer=setInterval(()=>pollMon(live.id),3000);}
 async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_game:id});}catch{return;}if(m.error)return;
+  monLast=m;
   const live=adminData.games.find(g=>g.id===id)||{};
   const ended=m.status==="ended";
   if(ended&&monTimer){clearInterval(monTimer);monTimer=null;}
@@ -1299,6 +1332,7 @@ async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_g
         <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
           <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':'#6366f1'};">● ${fin?'Finished':'Playing'}</span>
+          <button onclick="showTeamQR('${live.pin||""}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Join QR</button>
           <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
       <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div>

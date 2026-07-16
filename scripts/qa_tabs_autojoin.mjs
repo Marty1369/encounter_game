@@ -70,6 +70,40 @@ async function main() {
   ok("The other captain's team is untouched (Lapes=1)", lapes.players === 1);
   ok("No stray team was created", teams.length === 2, `${teams.length} teams`);
 
+  // ---------- the two QRs must NOT be the same thing ----------
+  const gameQR = APP + "?pin=" + PIN;                 // what the admin shows captains
+  ok("Game QR (admin) and team QR (captain) are different links",
+     invite !== gameQR && /[?&]t=[0-9a-f]{6}/.test(invite) && !/[?&]t=/.test(gameQR),
+     `game=${gameQR}  team=${invite}`);
+  const capt3 = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await capt3.goto(gameQR);                            // scanning the GAME qr must still ask to create
+  await capt3.waitForTimeout(1200);
+  await capt3.fill("#pname", "Kapitonas3"); await capt3.click("#pEnterBtn");
+  const gotPicker = await capt3.waitForSelector("#newteam", { timeout: 6000 }).then(() => true).catch(() => false);
+  ok("Game QR still leads to team creation (picker), not auto-join", gotPicker);
+  await capt3.close();
+
+  // ---------- typed joining code (read aloud / handed over) ----------
+  const teamsNow = JSON.parse(ctl("teams"));
+  const typed = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await typed.goto(APP);
+  const frag = new URL(invite).searchParams.get("t");
+  await typed.fill("#pin", `${PIN}-${frag}`);          // typed, not scanned
+  await typed.waitForTimeout(1200);
+  const typedCard = (await typed.locator("body").innerText()).replace(/\s+/g, " ");
+  ok("Typing 'PIN-fragment' resolves the team", /Joining team Vilkai/i.test(typedCard), typedCard.slice(0, 120));
+  await typed.fill("#pname", "Pavelavo");
+  await typed.click("#pEnterBtn");
+  const typedPicker = await typed.waitForSelector("#newteam", { timeout: 4000 }).then(() => true).catch(() => false);
+  ok("Typed code auto-joins too (no picker)", !typedPicker);
+  await typed.waitForFunction(() => !!localStorage.q_token, null, { timeout: 15000 });
+  await sleep(1200);
+  const after = JSON.parse(ctl("teams"));
+  ok("Typed code put them in Vilkai (now 3), no new team",
+     (after.find(t => t.name === "Vilkai") || {}).players === 3 && after.length === teamsNow.length,
+     JSON.stringify(after.map(t => ({ n: t.name, p: t.players }))));
+  await typed.close();
+
   // ---------- tabs while in a game ----------
   ctl("start");
   await mate.waitForFunction(() => !!document.getElementById("answer"), null, { timeout: 25000 });
