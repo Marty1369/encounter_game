@@ -5,7 +5,7 @@ import path from "node:path";
 const require = createRequire(import.meta.url);
 const { chromium } = require("./../.npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core");
 const BROWSER = path.join(process.cwd(), ".pw-browsers", "chromium-1232", "chrome-win64", "chrome.exe");
-const URL = "http://localhost:5055/";
+const URL = process.env.QA_URL || "http://localhost:5055/";
 const PIN = process.argv[2];
 if (!PIN) { console.error("usage: node scripts/qa_playthrough.mjs <PIN>"); process.exit(1); }
 
