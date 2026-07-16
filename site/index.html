@@ -42,10 +42,7 @@
       <div style="font-size:10.5px;color:#71717a;letter-spacing:.08em;text-transform:uppercase;">Live riddle platform</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:2px;background:#1c1c1f;border-radius:10px;padding:3px;border:1px solid #27272a;">
-    <button id="roleP" onclick="setRole('player')" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;">Player</button>
-    <button id="roleA" onclick="setRole('admin')" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;">Game creator</button>
-  </div>
+  <div id="roleTabs" style="display:flex;align-items:center;gap:2px;background:#1c1c1f;border-radius:10px;padding:3px;border:1px solid #27272a;"></div>
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
 </div>
 
@@ -109,18 +106,30 @@ let toastT;function toast(m){const t=$("toast");t.textContent=m;t.style.opacity=
 
 // ---- role ----
 let role="player";
+// A player who is in a game gets Game | Leaderboard instead of Player | Game creator —
+// once you're playing, "Game creator" is not a place you can usefully go. Before joining
+// (and on the login screen) the original Player | Game creator choice stays.
+let pView="game";                                   // game | leaderboard
+const pInGame=()=>!!(pToken()&&pGameState&&!pGameState.finished&&!pGameState.expired);
+function pGo(v){pView=v;renderPlayer();}
+const _tab=(label,on,onclick)=>`<button onclick="${onclick}" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;background:${on?"#fafafa":"transparent"};color:${on?"#111113":"#a1a1aa"};">${label}</button>`;
+function renderTabs(){
+  const el=$("roleTabs");if(!el)return;
+  el.innerHTML = (role==="player"&&pInGame())
+    ? _tab("Game",pView==="game","pGo('game')")+_tab("Leaderboard",pView==="leaderboard","pGo('leaderboard')")
+    : _tab("Player",role==="player","setRole('player')")+_tab("Game creator",role==="admin","setRole('admin')");
+}
 function setRole(r){role=r;if(monTimer){clearInterval(monTimer);monTimer=null;}
-  $("roleP").style.background=r==="player"?"#fafafa":"transparent";$("roleP").style.color=r==="player"?"#111113":"#a1a1aa";
-  $("roleA").style.background=r==="admin"?"#fafafa":"transparent";$("roleA").style.color=r==="admin"?"#111113":"#a1a1aa";
   $("player").classList.toggle("hidden",r!=="player");
-  $("admin").classList.toggle("hidden",r!=="player"?false:true); $("admin").classList.toggle("hidden",r!=="admin");
+  $("admin").classList.toggle("hidden",r!=="admin");
+  renderTabs();
   if(r==="admin")renderAdmin();
 }
 function clockPlus(){ // extend the live game by 1 min (real analogue of the sandbox clock)
   adminData?.games?.filter(g=>g.status==="live").forEach(g=>a("admin_extend",{p_game:g.id,p_minutes:1}));
   toast("Live game clock +1 min");
 }
-function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:""};localStorage.removeItem("q_token");localStorage.removeItem("q_pin");localStorage.removeItem("q_outbox");renderPlayer();}
+function resetView(){pState={screen:"join",pin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null};pView="game";pGameState=null;localStorage.removeItem("q_token");localStorage.removeItem("q_pin");localStorage.removeItem("q_outbox");renderPlayer();}
 
 // ===================== PLAYER =====================
 const TH=["primary","onPrimary","bg","ink","inkSoft","muted","card","field","line","fontDisplay","fontBody","displayWeight","displayTracking","rFrame","rCard","rBtn","rInput"];
@@ -128,17 +137,28 @@ const map={fontDisplay:"fontDisplay",fontBody:"fontBody"};
 function applyTheme(t){if(!t)return;const f=$("frame").style;const kv={primary:"--th-primary",onPrimary:"--th-onPrimary",bg:"--th-bg",ink:"--th-ink",inkSoft:"--th-inkSoft",muted:"--th-muted",card:"--th-card",field:"--th-field",line:"--th-line",fontDisplay:"--th-fontDisplay",fontBody:"--th-fontBody",displayWeight:"--th-displayWeight",displayTracking:"--th-displayTracking",rFrame:"--th-rFrame",rCard:"--th-rCard",rBtn:"--th-rBtn",rInput:"--th-rInput"};
   for(const k in kv)if(t[k]!=null)f.setProperty(kv[k],t[k]);}
 
-let pState={screen:"join",pin:"",name:"",active:null,team:""},pGameState=null,pOffset=0,pRevealed=new Set(),pLookupT;
+// autoCode = team fragment from an invite QR; autoTeam = the team it resolved to
+let pState={screen:"join",pin:"",name:"",active:null,team:"",autoCode:"",autoTeam:null},pGameState=null,pOffset=0,pRevealed=new Set(),pLookupT;
 const pToken=()=>localStorage.getItem("q_token");
 const serverNow=()=>Date.now()+pOffset;
 
 async function pLookup(){
-  const pin=pState.pin.trim(); if(pin.length<4){pState.active=null;renderPlayer();return;}
+  const pin=pState.pin.trim(); if(pin.length<4){pState.active=null;pState.autoTeam=null;renderPlayer();return;}
   try{const g=await rpc("get_game_by_pin",{p_pin:pin});if(pState.pin.trim()!==pin)return;pState.active=g.error?null:g;if(pState.active&&pState.active.theme)applyTheme(pState.active.theme);}catch{if(pState.pin.trim()===pin)pState.active=null;}
+  resolveAutoTeam();
   renderPlayer();
+}
+// An invite QR carries the team's id fragment: resolve it to the real team so the scanner is
+// dropped straight into it. If it no longer matches (team reset/removed) we fall back to the
+// picker rather than inventing a team.
+function resolveAutoTeam(){
+  if(!pState.autoCode||!pState.active||!Array.isArray(pState.active.teams))return;
+  const hit=pState.active.teams.filter(t=>t.code===pState.autoCode);
+  pState.autoTeam=hit.length===1?hit[0].name:null;
 }
 async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pState.name.trim())return;
   clearTimeout(pLookupT);            // a late lookup must not null out the game we just entered
+  if(pState.autoTeam)return pJoin(pState.autoTeam);   // came from a team QR — no picker needed
   pState.screen="teams"; renderPlayer(); }
 function pJoinIndex(i){const t=(pState.active&&pState.active.teams||[])[i];if(t)pJoin(t.name);}
 async function pJoin(team){
@@ -190,12 +210,14 @@ const pElapsedBase=st=>(st&&(st.starts_at||st.activated_at))||null;
 const hintBase=st=>Date.parse((st&&(st.activated_at||st.starts_at))||0)||0;
 function renderPlayer(){
   const s=pState,scr=$("pscreen");
+  renderTabs();
   // any screen other than join owns pscreen outright — drop the cached join DOM
   if(((pToken()&&pGameState)||s.screen==="teams")&&scr.dataset.view==="join")scr.dataset.view="";
   if(pToken()&&pGameState){
     if(pGameState.finished||pGameState.expired)return pDone();
+    if(pGameState.paused)return pPaused();          // a pause must always be seen
+    if(pView==="leaderboard")return pLeaderboard();
     if(pGameState.started===false)return pCountdown();
-    if(pGameState.paused)return pPaused();
     if(s.screen==="lobby")return pLobby();
     return pGame();
   }
@@ -250,13 +272,30 @@ function pCountdown(){
     ${inviteCard(st.team.name)}</div>`;
   renderQR("pQR",inviteURL());
 }
+// ---- Leaderboard tab (replaces the standings card that used to sit under the game) ----
+function pLeaderboard(){
+  const st=pGameState;
+  $("pscreen").innerHTML=`<div style="padding:26px 24px;display:flex;flex-direction:column;gap:14px;animation:fadeup .25s ease;">
+    <div><div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--th-muted);">${esc(st.game_name||"")}</div>
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:26px;margin-top:4px;letter-spacing:var(--th-displayTracking);">Leaderboard</div>
+      <div style="font-size:12.5px;color:var(--th-inkSoft);margin-top:4px;">Live — updates as teams solve challenges.</div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
+      <div id="pStand">${standRows()}</div></div>
+    <button onclick="pGo('game')" style="border:0;cursor:pointer;padding:14px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15px;background:var(--th-primary);color:var(--th-onPrimary);">Back to the game</button></div>`;
+  pollStandings();
+}
 // ---- Invite (team code + QR) ----
 // The QR encodes a deep link carrying the game PIN (+ team), so scanning it does exactly what
 // typing the game code does — it just also drops the teammate straight into the right team.
+// Game code + this team's id fragment. The fragment is what auto-assigns the scanner to THIS
+// captain's team — no picker, no ambiguity if two teams pick similar names.
 function inviteURL(){
   const pin=localStorage.getItem("q_pin")||"";
+  const code=(pGameState&&pGameState.team&&pGameState.team.code)||"";
   const team=pState.myTeam||(pGameState&&pGameState.team?pGameState.team.name:"")||"";
-  return location.origin+location.pathname+"?pin="+encodeURIComponent(pin)+(team?"&team="+encodeURIComponent(team):"");
+  const base=location.origin+location.pathname+"?pin="+encodeURIComponent(pin);
+  return code?base+"&t="+encodeURIComponent(code)
+             :base+(team?"&team="+encodeURIComponent(team):"");   // fallback for older states
 }
 function renderQR(elId,text){
   const el=$(elId);if(!el)return;
@@ -343,7 +382,8 @@ function pJoinSync(){
       info.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
         <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:19px;">${esc(g.name)}</div>
         <span style="font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:${regColor};white-space:nowrap;">● ${regLabel}</span></div>
-        ${g.description?`<div style="font-size:13px;color:var(--th-inkSoft);line-height:1.55;margin-top:6px;">${esc(g.description)}</div>`:""}`;
+        ${g.description?`<div style="font-size:13px;color:var(--th-inkSoft);line-height:1.55;margin-top:6px;">${esc(g.description)}</div>`:""}
+        ${pState.autoTeam?`<div style="margin-top:9px;padding:9px 12px;border-radius:var(--th-rInput);background:var(--th-field);border:1px solid var(--th-line);font-size:12.5px;color:var(--th-ink);">Joining team <b>${esc(pState.autoTeam)}</b> — just add your name.</div>`:""}`;
     }else info.innerHTML=`<div style="font-size:13.5px;color:var(--th-inkSoft);text-align:center;line-height:1.6;padding:2px 0 4px;">Enter a game PIN to begin.</div>`;
   }
   const pin=$("pin");   if(pin&&document.activeElement!==pin&&pin.value!==pState.pin)pin.value=pState.pin;
@@ -459,7 +499,7 @@ function pGame(){
   if(pGame._sig===sig&&$("answer")){
     if(pGame._hsig!==hsig){const hh=$("pHints");if(hh)hh.innerHTML=hintHtml;pGame._hsig=hsig;}
     if(pGame._fb!==fb){const fe=$("pFb");if(fe)fe.innerHTML=fb;pGame._fb=fb;}
-    pollStandings();return;
+    return;                                        // standings live on their own tab now
   }
   pGame._sig=sig;pGame._hsig=hsig;pGame._fb=fb;
   // media delegates to pBlock so questions, hints and the wizard Review all render identically
@@ -484,13 +524,8 @@ function pGame(){
       <div style="font-size:11px;color:var(--th-muted);text-align:center;">Shared progress — any teammate's correct answer advances the team.</div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Hints</div>
-      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div><div id="pHints">${hintHtml}</div></div>
-    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Standings</div>
-      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">live</span></div>
-      <div id="pStand">${standRows()}</div></div></div>`;
+      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div><div id="pHints">${hintHtml}</div></div></div>`;
   const el=$("answer");if(el&&wasFocus){el.focus();el.setSelectionRange(el.value.length,el.value.length);}
-  pollStandings();
 }
 let pStandings=[];
 function standRows(){
@@ -1314,10 +1349,11 @@ if(pToken())pRefresh();
 // Deep link from an invite QR: ?pin=XXXX(&team=Name) — same effect as typing the game code.
 (function(){
   const p=new URLSearchParams(location.search);
-  const pin=p.get("pin"),team=p.get("team");
+  const pin=p.get("pin"),code=p.get("t"),team=p.get("team");
   if(!pin||pToken())return;                       // already in a game → leave the session alone
   pState.pin=pin.trim().toUpperCase();
-  if(team)pState.team=team;
+  if(code)pState.autoCode=code.trim().toLowerCase();  // team fragment → auto-assign after lookup
+  else if(team){pState.team=team;pState.autoTeam=team;} // older links carried the name
   pLookup();
 })();
 </script>
