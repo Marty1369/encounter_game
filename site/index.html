@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#f2f2f0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18181b;min-height:100vh}
@@ -208,7 +209,41 @@ function pCountdown(){
     <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:26px;letter-spacing:var(--th-displayTracking);">Get ready, ${esc(st.team.name)}</div>
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);margin-top:6px;">Game starts in</div>
     <div id="pCd" style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:56px;font-variant-numeric:tabular-nums;color:var(--th-primary);">${rem>0?fmt(rem):"0:00"}</div>
-    <div style="font-size:13px;color:var(--th-inkSoft);">The first challenge unlocks automatically when the timer hits zero.</div></div>`;
+    <div style="font-size:13px;color:var(--th-inkSoft);">The first challenge unlocks automatically when the timer hits zero.</div>
+    ${inviteCard(st.team.name)}</div>`;
+  renderQR("pQR",inviteURL());
+}
+// ---- Invite (team code + QR) ----
+// The QR encodes a deep link carrying the game PIN (+ team), so scanning it does exactly what
+// typing the game code does — it just also drops the teammate straight into the right team.
+function inviteURL(){
+  const pin=localStorage.getItem("q_pin")||"";
+  const team=pState.myTeam||(pGameState&&pGameState.team?pGameState.team.name:"")||"";
+  return location.origin+location.pathname+"?pin="+encodeURIComponent(pin)+(team?"&team="+encodeURIComponent(team):"");
+}
+function renderQR(elId,text){
+  const el=$(elId);if(!el)return;
+  if(el.dataset.qr===text)return;                 // already drawn (screens re-render every 10s)
+  el.dataset.qr=text;
+  if(typeof qrcode==="undefined"){el.innerHTML='<span style="font-size:11px;color:#a1a1aa;text-align:center;">QR unavailable —<br>use the code below</span>';return;}
+  try{const qr=qrcode(0,"M");qr.addData(text);qr.make();
+    el.innerHTML=qr.createSvgTag({cellSize:4,margin:0,scalable:true});
+    const svg=el.querySelector("svg");if(svg){svg.style.width="100%";svg.style.height="100%";svg.removeAttribute("width");svg.removeAttribute("height");}
+  }catch(e){el.innerHTML='<span style="font-size:11px;color:#a1a1aa;">QR error</span>';}
+}
+function copyInvite(){
+  const u=inviteURL();
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(()=>toast("Invite link copied"),()=>toast(u));
+  else toast(u);
+}
+// Shown on the countdown (pre-start — where the founder actually waits) and in the lobby.
+function inviteCard(teamName){
+  return `<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:11px;align-items:center;text-align:center;">
+    <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Invite teammates</div>
+    <div id="pQR" style="width:174px;height:174px;display:grid;place-items:center;background:#fff;border:1px solid var(--th-line);border-radius:12px;padding:8px;box-sizing:border-box;"></div>
+    <div style="font-size:12px;color:var(--th-inkSoft);">Scan to join <b>${esc(teamName||"")}</b> — or enter the game code:</div>
+    <div style="font-family:'Space Grotesk',monospace;font-weight:700;font-size:25px;letter-spacing:.3em;color:var(--th-ink);padding-left:.3em;">${esc(localStorage.getItem("q_pin")||"")}</div>
+    <button onclick="copyInvite()" style="border:1px solid var(--th-line);cursor:pointer;padding:9px 16px;border-radius:var(--th-rBtn);font-weight:600;font-size:12.5px;background:var(--th-field);color:var(--th-ink);">Copy invite link</button></div>`;
 }
 // ---- Lobby ----
 function pLobby(){
@@ -224,7 +259,8 @@ function pLobby(){
         <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:17px;">${esc(pState.myTeam||st.team.name)}</div>
         <span style="font-size:11px;font-weight:600;letter-spacing:.06em;padding:4px 11px;border-radius:var(--th-rBtn);border:1px solid var(--th-line);color:var(--th-inkSoft);font-family:'Space Grotesk',monospace;">${esc(localStorage.getItem("q_pin"))}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:var(--th-rBtn);background:var(--th-field);border:1px solid var(--th-line);color:var(--th-ink);">${esc(pState.name)}</span></div>
-      <div style="font-size:11.5px;color:var(--th-muted);">Share the game PIN so teammates can join your team.</div></div>
+      <div style="font-size:11.5px;color:var(--th-muted);">Share the code or QR below so teammates land in <b>${esc(pState.myTeam||st.team.name)}</b>.</div></div>
+    ${inviteCard(pState.myTeam||st.team.name)}
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:22px;text-align:center;">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);">Game in progress</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:48px;font-variant-numeric:tabular-nums;color:var(--th-primary);margin-top:6px;letter-spacing:.01em;">${exp!=null?fmt(exp):"—"}</div>
@@ -234,6 +270,7 @@ function pLobby(){
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">In the lobby</div>
       <span style="font-size:11px;color:var(--th-muted);letter-spacing:.06em;text-transform:uppercase;">${(g.teams||[]).length} teams</span></div>
       <div style="display:flex;flex-direction:column;gap:7px;">${others||'<div style="font-size:12.5px;color:var(--th-muted);">Just your team so far.</div>'}</div></div></div>`;
+  renderQR("pQR",inviteURL());
 }
 // ---- Join ----
 function pJoinScreen(){
@@ -681,8 +718,9 @@ function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:1
 function wizStep2(){
   const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
     <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
-    <div style="font-size:11px;color:#a1a1aa;">${q.blocks.length} blocks · ${q.hints.length} hints</div></button>
-    <button onclick="moveQ(${i},-1)" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 4px;">↑</button>
+    <div style="font-size:11px;color:#a1a1aa;">${(q.blocks||[]).length} blocks · ${(q.hints||[]).length} hints</div></button>
+    <button onclick="moveQ(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↑</button>
+    <button onclick="moveQ(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↓</button>
     <button onclick="delWQ(${i})" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 4px;">✕</button></div>`;}).join("");
   const q=wiz.questions[wiz.sel];
   const editor=q?wqEditor(q):`<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:10px;padding:16px;text-align:center;">Select or add a question.</div>`;
@@ -721,7 +759,8 @@ function wqEditor(q){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Title</label><input value="${esc(q.title)}" oninput="wiz.questions[wiz.sel].title=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
       <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Correct answer</label><input value="${esc(q.answer)}" oninput="wiz.questions[wiz.sel].answer=this.value" placeholder="case-insensitive" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div></div>
-    <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label><input value="${esc(q.intro)}" oninput="wiz.questions[wiz.sel].intro=this.value" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;"></div>
+    <div style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Intro / story (optional)</label>
+      <textarea oninput="wiz.questions[wiz.sel].intro=this.value" placeholder="Story text shown above the challenge…" style="padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13.5px;min-height:96px;resize:vertical;line-height:1.5;">${esc(q.intro||"")}</textarea></div>
     <div style="display:flex;flex-direction:column;gap:4px;max-width:220px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Answer matching</label>
       <select onchange="wiz.questions[wiz.sel].case_sensitive=(this.value==='cs')" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;background:#fff;">
         <option value="ci" ${q.case_sensitive?"":"selected"}>Case-insensitive</option><option value="cs" ${q.case_sensitive?"selected":""}>Case-sensitive</option></select></div>
@@ -757,19 +796,44 @@ function wizStep3(){
   return `<div><p style="margin:0 0 12px;font-size:12.5px;color:#71717a;">Each preset carries its own palette, typeface and geometry — corners, buttons, frame shape.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;">${cards}</div></div>`;
 }
+// Theme tokens are escaped before landing in a style="" attribute — they come from the DB and
+// must never be able to close the attribute and inject a handler.
+function themeVars(tk){
+  const v=(x,d)=>esc(x==null||x===""?d:x);
+  return `--th-primary:${v(tk.primary,'#4f46e5')};--th-onPrimary:${v(tk.onPrimary,'#fff')};--th-bg:${v(tk.bg,'#fff')};--th-ink:${v(tk.ink,'#18181b')};--th-inkSoft:${v(tk.inkSoft,'#52525b')};--th-muted:${v(tk.muted,'#a1a1aa')};--th-card:${v(tk.card,'#fff')};--th-field:${v(tk.field,'#f4f4f5')};--th-line:${v(tk.line,'#e4e4e7')};--th-fontDisplay:${v(tk.fontDisplay,"'Space Grotesk',sans-serif")};--th-fontBody:${v(tk.fontBody,'-apple-system,sans-serif')};--th-displayWeight:${v(tk.displayWeight,600)};--th-displayTracking:${v(tk.displayTracking,0)};--th-rCard:${v(tk.rCard,'12px')};--th-rInput:${v(tk.rInput,'10px')};--th-rBtn:${v(tk.rBtn,'10px')};`;
+}
+// Review renders each question + hints exactly as a player sees them (media and links resolved),
+// so the creator can spot broken links / bad text before saving.
+function wizPreviewQ(q,i,total){
+  const blocks=(q.blocks||[]).map(pBlock).join("");
+  const hints=(q.hints||[]).map((h,hi)=>{
+    const hb=(h.blocks||[]).map(pBlock).join("")||'<div style="font-size:12px;color:var(--th-muted);">No blocks in this hint.</div>';
+    return `<div style="border-top:1px solid var(--th-line);padding:9px 0;">
+      <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--th-inkSoft);">Hint ${String(hi+1).padStart(2,"0")} · unlocks after ${Number(h.reveal_after_min)||0} min</div>
+      <div style="margin-top:6px;display:flex;flex-direction:column;gap:7px;">${hb}</div></div>`;}).join("");
+  return `<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:20px;display:flex;flex-direction:column;gap:12px;">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;">
+      <span style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--th-muted);">Challenge ${i+1} of ${total}</span>
+      <span style="font-size:11.5px;color:var(--th-muted);">Answer · <strong style="color:#15803d;">${esc(q.answer||"")}</strong></span></div>
+    <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:22px;line-height:1.2;letter-spacing:var(--th-displayTracking);color:var(--th-ink);">${esc(q.title||"Untitled")}</div>
+    ${q.intro?`<div style="font-size:13px;color:var(--th-inkSoft);font-style:italic;white-space:pre-line;">${esc(q.intro)}</div>`:""}
+    ${blocks}
+    ${q.info?`<div style="background:color-mix(in srgb,var(--th-primary) 9%,var(--th-card));border:1px solid color-mix(in srgb,var(--th-primary) 28%,var(--th-line));border-left:3px solid var(--th-primary);border-radius:var(--th-rInput);padding:12px 14px;font-size:13.5px;line-height:1.55;color:var(--th-ink);white-space:pre-line;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--th-primary);display:block;margin-bottom:4px;">ⓘ Important</span>${esc(q.info)}</div>`:""}
+    ${(q.hints||[]).length?`<div style="border-top:1px solid var(--th-line);padding-top:8px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:14px;color:var(--th-ink);">Hints</div>${hints}</div>`
+      :'<div style="font-size:12px;color:var(--th-muted);border-top:1px solid var(--th-line);padding-top:8px;">No hints for this challenge.</div>'}</div>`;
+}
 function wizStep4(){
   const th=adminData.themes.find(t=>t.id===wiz.theme_id),tk=th?.tokens||{};
-  const hc=wiz.questions.reduce((n,q)=>n+q.hints.length,0);
-  const qs=wiz.questions.map((q,i)=>`<div style="border:1px solid #f0f0f1;border-radius:11px;padding:14px 16px;background:#fafafa;">
-    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong style="font-size:13.5px;color:#18181b;">Q${i+1}. ${esc(q.title||"Untitled")}</strong>
-    <span style="font-size:12px;color:#71717a;">Answer · <strong style="color:#15803d;">${esc(q.answer||"")}</strong></span></div>
-    <div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(q.intro||"")}</div></div>`).join("");
+  const hc=wiz.questions.reduce((n,q)=>n+(q.hints||[]).length,0);
+  const qs=`<div style="${themeVars(tk)}font-family:var(--th-fontBody);background:var(--th-bg);border:1px solid #e4e4e7;border-radius:13px;padding:16px;display:flex;flex-direction:column;gap:14px;">
+    ${wiz.questions.length?wiz.questions.map((q,i)=>wizPreviewQ(q,i,wiz.questions.length)).join(""):'<div style="font-size:13px;color:var(--th-muted);">No questions yet.</div>'}</div>`;
   return `<div style="display:flex;flex-direction:column;gap:12px;">
-    <div style="border-radius:13px;padding:22px;background:linear-gradient(135deg,${tk.primary||"#18181b"},${tk.secondary||tk.primary||"#18181b"});color:#fff;">
+    <div style="border-radius:13px;padding:22px;background:linear-gradient(135deg,${esc(tk.primary||"#18181b")},${esc(tk.secondary||tk.primary||"#18181b")});color:#fff;">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;opacity:.8;">${esc(th?.name||"")} theme</div>
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:23px;margin-top:4px;">${esc(wiz.name||"Untitled")}</div>
-      <div style="font-size:13px;opacity:.9;margin-top:4px;">${esc(wiz.description||"")}</div>
-      <div style="font-size:12px;opacity:.85;margin-top:8px;">${wiz.questions.length} questions · ${hc} hints</div></div>${qs}
+      <div style="font-size:13px;opacity:.9;margin-top:4px;white-space:pre-line;">${esc(wiz.description||"")}</div>
+      <div style="font-size:12px;opacity:.85;margin-top:8px;">${wiz.questions.length} questions · ${hc} hints</div></div>
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Player preview — exactly what teams will see (all hints shown)</div>${qs}
     <div style="display:flex;gap:9px;flex-wrap:wrap;">
       <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Save as draft</button>
       <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#18181b;">Save as ready</button>
@@ -943,6 +1007,15 @@ function closeSpectate(){document.getElementById("spectator").classList.add("hid
 setRole("player");
 renderPlayer();
 if(pToken())pRefresh();
+// Deep link from an invite QR: ?pin=XXXX(&team=Name) — same effect as typing the game code.
+(function(){
+  const p=new URLSearchParams(location.search);
+  const pin=p.get("pin"),team=p.get("team");
+  if(!pin||pToken())return;                       // already in a game → leave the session alone
+  pState.pin=pin.trim().toUpperCase();
+  if(team)pState.team=team;
+  pLookup();
+})();
 </script>
 </body>
 </html>
