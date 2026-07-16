@@ -338,23 +338,60 @@ function pGame(){
       <div style="font-size:11px;color:var(--th-muted);text-align:center;">Shared progress — any teammate's correct answer advances the team.</div></div>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Hints</div>
-      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div>${hintHtml}</div></div>`;
+      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">unlock over time · free</span></div>${hintHtml}</div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:9px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Standings</div>
+      <span style="font-size:10.5px;color:var(--th-muted);letter-spacing:.05em;text-transform:uppercase;">live</span></div>
+      <div id="pStand">${standRows()}</div></div></div>`;
   const el=$("answer");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}
+  pollStandings();
+}
+let pStandings=[];
+function standRows(){
+  const me=(pGameState&&pGameState.team)?pGameState.team.name:"";
+  if(!pStandings.length)return '<div style="font-size:12.5px;color:var(--th-muted);">Waiting for other teams…</div>';
+  return pStandings.map((r,i)=>{
+    const where=r.finished?("Finished · "+fmt(r.total_seconds||0)):("Q"+(r.stage_ord||1)+(r.stage_title?" · "+esc(r.stage_title):""));
+    const mine=r.name===me;
+    return `<div style="display:flex;align-items:center;gap:9px;padding:8px 2px;border-top:1px solid var(--th-line);${mine?'background:var(--th-field);border-radius:8px;padding-left:8px;padding-right:8px;':''}">
+      <span style="width:20px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:14px;color:${r.finished?'#15803d':'var(--th-primary)'};">${i+1}</span>
+      <span style="flex:1;font-weight:600;font-size:13px;color:var(--th-ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${mine?' <span style="font-size:10px;color:var(--th-muted);">(you)</span>':''}</span>
+      <span style="font-size:11.5px;color:var(--th-muted);white-space:nowrap;">${where}</span></div>`;
+  }).join("");
+}
+async function pollStandings(){
+  const pin=localStorage.getItem("q_pin");if(!pin)return;
+  try{const s=await rpc("standings",{p_pin:pin});if(Array.isArray(s)){pStandings=s;const el=$("pStand");if(el)el.innerHTML=standRows();}}catch{}
 }
 // ---- Finish ----
+let pDoneTab="overall";
+function pResOverall(res,me){
+  if(!res.length)return '<div style="font-size:12.5px;color:var(--th-muted);padding:8px 0;">No teams yet.</div>';
+  return res.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--th-line);${r.name===me?'background:var(--th-field);':''}">
+    <span style="width:22px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;color:var(--th-primary);">${i+1}</span>
+    <span style="flex:1;font-weight:600;font-size:13.5px;color:var(--th-ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${r.finished?"":' <span style="font-size:10px;color:var(--th-muted);">· dnf</span>'}</span>
+    <span style="font-size:11.5px;color:var(--th-muted);white-space:nowrap;">${(r.splits||[]).length} solved</span>
+    <span style="font-size:12.5px;font-weight:600;color:var(--th-ink);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt(r.overall_seconds||0)}</span></div>`).join("");
+}
+function pResPerQ(res,me){
+  if(!res.length)return '<div style="font-size:12.5px;color:var(--th-muted);padding:8px 0;">No teams yet.</div>';
+  return res.map(r=>`<div style="padding:10px 2px;border-top:1px solid var(--th-line);${r.name===me?'background:var(--th-field);border-radius:8px;padding:10px 8px;':''}">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;"><span style="font-weight:600;font-size:13px;color:var(--th-ink);">${esc(r.name)}</span><span style="font-size:12px;font-weight:600;color:var(--th-inkSoft);font-variant-numeric:tabular-nums;">${fmt(r.overall_seconds||0)}</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(r.splits||[]).length?r.splits.map(s=>`<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--th-field);color:var(--th-inkSoft);white-space:nowrap;"><b style="color:var(--th-ink);">Q${s.ord}</b> ${fmt(s.seconds)}</span>`).join(""):'<span style="font-size:11.5px;color:var(--th-muted);">no solves</span>'}</div></div>`).join("");
+}
 async function pDone(){
-  const st=pGameState;let board=[];try{board=await rpc("leaderboard",{p_pin:localStorage.getItem("q_pin")});}catch{}
-  const fin=!!st.finished;
-  const myRank=fin?((board.findIndex(r=>r.name===st.team.name)+1)||"—"):"—";
+  const st=pGameState;const pin=localStorage.getItem("q_pin");
+  let res=[];try{res=await rpc("results",{p_pin:pin});}catch{}
+  if(!Array.isArray(res))res=[];
+  const fin=!!st.finished, me=st.team?st.team.name:"";
+  const mine=res.find(r=>r.name===me);
+  const myRank=fin?((res.findIndex(r=>r.name===me)+1)||"—"):"—";
   const kicker=fin?"Quest complete":"Game over";
   const headline=fin?"All challenges solved.":"The host ended the game.";
-  const sub=fin?("Well played, "+esc(st.team.name)+"."):"Here are the final standings.";
-  const doneTime=fin?fmt(st.total_seconds||0):"—";
-  const rows=board.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--th-line);${r.name===st.team.name?'background:var(--th-field);':''}">
-    <span style="width:22px;font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;color:var(--th-primary);">${i+1}</span>
-    <span style="flex:1;font-weight:600;font-size:13.5px;color:var(--th-ink);">${esc(r.name)}</span>
-    <span style="font-size:11.5px;color:var(--th-muted);white-space:nowrap;">${st.total_questions} solved</span>
-    <span style="font-size:12.5px;font-weight:600;color:var(--th-ink);white-space:nowrap;font-variant-numeric:tabular-nums;">${fmt(r.total_seconds)}</span></div>`).join("");
+  const sub=fin?("Well played, "+esc(me)+"."):"Here are the final standings.";
+  const doneTime=mine?fmt(mine.overall_seconds||0):"—";
+  const tabBtn=(k,l)=>`<button onclick="pDoneTab='${k}';pDone()" style="flex:1;border:0;cursor:pointer;padding:9px;border-radius:var(--th-rInput);font-weight:600;font-size:12.5px;background:${pDoneTab===k?'var(--th-primary)':'var(--th-field)'};color:${pDoneTab===k?'var(--th-onPrimary)':'var(--th-inkSoft)'};">${l}</button>`;
+  const body=pDoneTab==="per"?pResPerQ(res,me):pResOverall(res,me);
   $("pscreen").innerHTML=`<div style="padding:36px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .3s ease;">
     <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">${kicker}</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">${headline}</div>
@@ -362,7 +399,10 @@ async function pDone(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Final rank</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;">${myRank}</div></div>
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${doneTime}</div></div></div>
-    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;margin-bottom:8px;">Final standings</div><div style="display:flex;flex-direction:column;">${rows||'<div style="font-size:12.5px;color:var(--th-muted);padding:8px 0;">No finishers yet.</div>'}</div></div>
+    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Leaderboard</div>
+      <div style="display:flex;gap:6px;">${tabBtn("overall","Overall")}${tabBtn("per","Per question")}</div>
+      <div style="display:flex;flex-direction:column;">${body}</div></div>
     <button onclick="resetView()" style="border:1px solid var(--th-line);cursor:pointer;padding:13px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:transparent;color:var(--th-ink);">Back to start</button></div>`;
 }
 
@@ -462,7 +502,47 @@ function viewGames(){
     ${selGame?selectedDetail():""}</section>`;
 }
 let selRoster=null;
-async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});selRoster=await a("admin_roster",{p_game:id});drawAdmin();}
+async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});selRoster=await a("admin_roster",{p_game:id});drawAdmin();
+  if(selGame&&selGame.status==="ended")loadEndResults(selGame.pin);
+}
+// Keep the admin Games view honest about status: refresh the list and flip LIVE→ENDED on its own,
+// without disrupting typing. Auto-stop is server-side; this makes the UI reflect it live.
+setInterval(async()=>{
+  if(role!=="admin"||!CODE||adminView!=="games")return;
+  const ae=document.activeElement;if(ae&&["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))return;
+  let list;try{list=await a("admin_list");}catch{return;}
+  const sig=x=>JSON.stringify((x.games||[]).map(g=>[g.id,g.status,g.paused_at,g.starts_at]));
+  const changed=adminData&&sig(adminData)!==sig(list);
+  adminData=list;
+  if(!changed)return;
+  if(selGame){const g=(list.games||[]).find(x=>x.id===selGame.id);
+    if(g&&g.status!==selGame.status){selectGame(selGame.id);return;}}   // e.g. auto-ended → refetch detail + leaderboard
+  drawAdmin();
+},6000);
+let aEndTab="overall";
+function aResOverall(res){
+  if(!res.length)return '<div style="font-size:12.5px;color:#a1a1aa;">No teams.</div>';
+  return `<table style="width:100%;border-collapse:collapse;">${res.map((r,i)=>`<tr>
+    <td style="padding:7px 4px;border-bottom:1px solid #f0f0f1;font-size:13px;width:26px;color:#6366f1;font-weight:600;">${i+1}</td>
+    <td style="padding:7px 4px;border-bottom:1px solid #f0f0f1;font-size:13px;color:#18181b;font-weight:600;">${esc(r.name)}${r.finished?"":' <span style="font-size:10px;color:#a1a1aa;">· dnf</span>'}</td>
+    <td style="padding:7px 4px;border-bottom:1px solid #f0f0f1;font-size:12px;color:#71717a;text-align:right;white-space:nowrap;">${(r.splits||[]).length} solved</td>
+    <td style="padding:7px 4px;border-bottom:1px solid #f0f0f1;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:#18181b;">${fmt(r.overall_seconds||0)}</td></tr>`).join("")}</table>`;
+}
+function aResPerQ(res){
+  if(!res.length)return '<div style="font-size:12.5px;color:#a1a1aa;">No teams.</div>';
+  return res.map(r=>`<div style="border-top:1px solid #f0f0f1;padding:10px 2px;">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;"><span style="font-weight:600;font-size:13px;color:#18181b;">${esc(r.name)}</span><span style="font-size:12px;font-weight:600;color:#52525b;font-variant-numeric:tabular-nums;">${fmt(r.overall_seconds||0)}</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(r.splits||[]).length?r.splits.map(s=>`<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#fafafa;border:1px solid #f0f0f1;color:#52525b;white-space:nowrap;"><b style="color:#18181b;">Q${s.ord}</b> ${fmt(s.seconds)}</span>`).join(""):'<span style="font-size:11px;color:#a1a1aa;">no solves</span>'}</div></div>`).join("");
+}
+async function loadEndResults(pin){
+  const el=$("endLb");if(!el)return;
+  let res=[];try{res=await rpc("results",{p_pin:pin});}catch{}
+  if(!Array.isArray(res))res=[];
+  const tabBtn=(k,l)=>`<button onclick="aEndTab='${k}';loadEndResults('${pin}')" style="border:1px solid ${aEndTab===k?'#18181b':'#e4e4e7'};cursor:pointer;padding:7px 14px;border-radius:8px;font-weight:600;font-size:12px;background:${aEndTab===k?'#18181b':'#fff'};color:${aEndTab===k?'#fff':'#52525b'};">${l}</button>`;
+  el.innerHTML=`<div style="font-weight:600;font-size:13px;color:#18181b;margin-bottom:10px;">Final leaderboard</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">${tabBtn("overall","Overall")}${tabBtn("per","Per question")}</div>
+    ${aEndTab==="per"?aResPerQ(res):aResOverall(res)}`;
+}
 function localDT(iso){if(!iso)return"";const d=new Date(iso);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());}
 async function setSchedule(id){const v=$("schedInput").value;const iso=v?new Date(v).toISOString():null;await a("admin_set_schedule",{p_game:id,p_starts_at:iso});toast("Start time saved");selectGame(id);}
 async function startNow(id){if(!confirm("Start the game now for all teams?"))return;await a("admin_start_now",{p_game:id});toast("Game started");adminData=await a("admin_list");selectGame(id);}
@@ -528,7 +608,9 @@ function controlsPanel(g){
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
     <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button></div>`;
   let life="";
-  if(ended){ life=`<div style="font-size:13px;color:#71717a;font-weight:600;">This game has ended. Duplicate it to run again.</div>`; }
+  if(ended){ return `<div style="border-top:1px solid #f0f0f1;padding-top:16px;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:13px;color:#71717a;font-weight:600;">This game has ended — the leaderboard below is final. Duplicate it to run again.</div>
+    <div id="endLb" style="background:#fafafa;border:1px solid #f0f0f1;border-radius:11px;padding:16px;"><div style="font-size:12.5px;color:#a1a1aa;">Loading leaderboard…</div></div></div>`; }
   else if(!activated){ life=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Not activated")}
     <button onclick="activateGame('${g.id}')" style="border:0;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Confirm &amp; Activate — open registration</button></div>`; }
   else if(!started){ life=`<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;">
@@ -770,7 +852,18 @@ function viewThemes(){
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;">${cards}</div></section>`;
 }
 // ---- Monitor ----
-let monTimer=null;
+let monTimer=null,monGameId=null,monExpanded=new Set();
+function toggleMon(id){if(monExpanded.has(id))monExpanded.delete(id);else monExpanded.add(id);if(monGameId)pollMon(monGameId);}
+function monDetail(t){
+  const chips=(t.splits||[]).length?t.splits.map(s=>`<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid #f0f0f1;color:#52525b;white-space:nowrap;"><b style="color:#18181b;">Q${s.ord}</b> ${fmt(s.seconds)}${s.hints?` · ${s.hints}💡`:""}</span>`).join(""):'<span style="font-size:11px;color:#a1a1aa;">No solved tasks yet.</span>';
+  return `<div style="border-top:1px dashed #e4e4e7;padding-top:9px;display:flex;flex-direction:column;gap:7px;">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:#52525b;">
+      <span>On current task: <b style="color:#18181b;">${fmt(t.seconds_on_stage||0)}</b></span>
+      <span>Hints shown (current): <b style="color:#18181b;">${t.hints_revealed||0}</b></span>
+      <span>Total: <b style="color:#18181b;">${fmt(t.total_seconds||0)}</b></span></div>
+    <div><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#a1a1aa;margin-bottom:5px;">Time per solved task</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">${chips}</div></div></div>`;
+}
 function viewMonitor(){
   const live=adminData.games.find(g=>g.status==="live");
   if(!live)return `<section style="display:flex;flex-direction:column;gap:18px;"><div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
@@ -779,9 +872,10 @@ function viewMonitor(){
   return `<section style="display:flex;flex-direction:column;gap:18px;"><div id="monHead"></div><div id="monTeams"></div></section>`;
 }
 function startMon(){if(monTimer)clearInterval(monTimer);const live=adminData.games.find(g=>g.status==="live");if(!live)return;pollMon(live.id);monTimer=setInterval(()=>pollMon(live.id),3000);}
-async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}catch{return;}if(m.error)return;
+async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_game:id});}catch{return;}if(m.error)return;
   const live=adminData.games.find(g=>g.id===id)||{};
-  const now=Date.parse(m.server_now),exp=m.expires_at?Math.max(0,(Date.parse(m.expires_at)-now)/1000):null;
+  const ended=m.status==="ended";
+  if(ended&&monTimer){clearInterval(monTimer);monTimer=null;}
   const done=m.teams.filter(t=>t.finished_at).length;
   const players=m.teams.reduce((n,t)=>n+(t.players||0),0);
   const stats=[["Teams",m.teams.length],["Players",players],["Questions",m.total_questions],["Finished",done]];
@@ -789,22 +883,25 @@ async function pollMon(id){let m;try{m=await a("admin_monitor",{p_game:id});}cat
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">Live monitor</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Watching "${esc(live.name||"")}" — PIN ${live.pin||""}</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="pauseGame('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Pause…</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">${ended
+        ?`<span style="font-size:12.5px;color:#15803d;font-weight:600;">Game ended — final leaderboard in the Games panel.</span>`
+        :`<button onclick="pauseGame('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Pause…</button>
       <button onclick="resumeGame('${id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#18181b;">Resume</button>
-      <button onclick="stopGame('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#b91c1c;color:#fff;">End game</button></div></div>
+      <button onclick="stopGame('${id}')" style="border:0;cursor:pointer;padding:9px 16px;border-radius:9px;font-weight:600;font-size:12.5px;background:#b91c1c;color:#fff;">End game</button>`}</div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px;">${stats.map(s=>`<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${s[0]}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${s[1]}</div></div>`).join("")}</div></div>`;
   const tv=$("monTeams");if(tv)tv.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h2 style="margin:0 0 14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#18181b;">Team progress</h2><div style="display:flex;flex-direction:column;gap:9px;">
-    ${m.teams.length?m.teams.map(t=>{const fin=!!t.finished_at;const pct=fin?100:Math.round(((t.stage_ord||1)-1)/m.total_questions*100);const c=fin?"#15803d":"#6366f1";
+    ${m.teams.length?m.teams.map(t=>{const fin=!!t.finished_at;const pct=fin?100:Math.round(((t.stage_ord||1)-1)/m.total_questions*100);const c=fin?"#15803d":"#6366f1";const open=monExpanded.has(t.id);
       return `<div style="border:1px solid #f0f0f1;border-radius:11px;padding:13px 16px;background:#fafafa;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:baseline;gap:9px;"><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
+        <div onclick="toggleMon('${t.id}')" title="Click for detail" style="display:flex;align-items:baseline;gap:9px;cursor:pointer;user-select:none;"><span style="font-size:11px;color:#a1a1aa;width:9px;">${open?"▾":"▸"}</span><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
         <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
           <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':'#6366f1'};">● ${fin?'Finished':'Playing'}</span>
           <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
-      <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div></div>`;}).join("")
+      <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div>
+      ${open?monDetail(t):""}</div>`;}).join("")
     :'<div style="border:1px dashed #e4e4e7;border-radius:12px;padding:24px;text-align:center;color:#a1a1aa;font-size:13px;">No teams yet. Join from the Player view.</div>'}</div></div>`;
 }
 async function resetTeam(id){if(!confirm("Reset this team to the start?"))return;await a("admin_reset_team",{p_team:id});toast("Reset");}

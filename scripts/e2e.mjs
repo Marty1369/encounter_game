@@ -67,6 +67,11 @@ async function main() {
   ok("player: Q1 hint unlocked (reveal 0)", s.hints[0] && s.hints[0].unlocked === true);
   ok("player: unlocked hint has blocks", (s.hints[0].blocks||[]).length === 1);
 
+  console.log("== live standings ==");
+  const stand = await rpc("standings", { p_pin: PIN });
+  ok("standings lists 2 teams", Array.isArray(stand) && stand.length === 2, JSON.stringify(stand));
+  ok("standings shows current stage (Q1, not finished)", stand.every(s2 => s2.stage_ord === 1 && s2.finished === false));
+
   console.log("== play Q1 (wrong then right) ==");
   ok("wrong answer rejected", (await rpc("submit_answer", { p_session: A1, p_input:"nope", p_mutation_id: mid() })).correct === false);
   ok("correct answer accepted", (await rpc("submit_answer", { p_session: A1, p_input:"ALPHA", p_mutation_id: mid() })).correct === true); // case-insensitive
@@ -117,8 +122,16 @@ async function main() {
   ok("leaderboard sorted by time", lb.length===2 && lb[0].total_seconds <= lb[1].total_seconds);
   const mon = await A("admin_monitor", { p_game: GID });
   ok("monitor lists 2 teams", mon.teams.length === 2);
+  ok("monitor: team carries splits[]", Array.isArray(mon.teams[0].splits) && mon.teams[0].splits.length >= 1, JSON.stringify(mon.teams[0].splits));
   const ros = await A("admin_roster", { p_game: GID });
   ok("roster: 2 teams, 3 players", ros.team_count === 2 && ros.player_count === 3);
+
+  console.log("== results (per-question splits + overall) ==");
+  const res = await rpc("results", { p_pin: PIN });
+  ok("results lists 2 teams", Array.isArray(res) && res.length === 2, JSON.stringify(res));
+  const alpha = res.find(r => r.name === "Alpha");
+  ok("results: Alpha finished with splits", alpha && alpha.finished === true && Array.isArray(alpha.splits) && alpha.splits.length === 3, JSON.stringify(alpha));
+  ok("results: overall = sum of splits (no credit for Alpha)", alpha && alpha.overall_seconds === alpha.splits.reduce((n,s)=>n+s.seconds,0));
 
   console.log("== duplicate / rename ==");
   const dup = await A("admin_duplicate", { p_game: GID });
@@ -127,6 +140,18 @@ async function main() {
   ok("duplicate is draft with same #questions", dupGame.status === "draft" && dupGame.questions.length === 3); // Q2 was discarded => 3
   await A("admin_rename", { p_game: dup.id, p_name: "E2E Copy Renamed" });
   ok("rename applied", (await A("admin_get_game", { p_game: dup.id })).name === "E2E Copy Renamed");
+
+  console.log("== discarding the LAST question auto-stops ==");
+  const p2 = { id:"", name:"Autostop", max_teams:5, duration_min:60,
+    questions:[ { title:"Only", answer:"x", blocks:[{type:"text",text:"only"}], hints:[] } ] };
+  const s2 = await A("admin_save_game", { p_payload: p2 });
+  await A("admin_activate", { p_game: s2.id });
+  await rpc("join_game", { p_pin: s2.pin, p_team: "Solo", p_name: "z" });
+  await A("admin_start_now", { p_game: s2.id });
+  await A("admin_discard_task", { p_game: s2.id, p_ord: 1, p_reason: "nuke" });
+  const lob2 = await rpc("get_game_by_pin", { p_pin: s2.pin });
+  ok("discarding last question auto-ends game", lob2.status === "ended" || lob2.expired === true, JSON.stringify({status:lob2.status,expired:lob2.expired}));
+  await A("admin_delete_game", { p_game: s2.id });
 
   console.log("== cleanup ==");
   await A("admin_delete_game", { p_game: dup.id });
