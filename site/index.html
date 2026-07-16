@@ -827,6 +827,48 @@ function startPrevResize(e){                       // drag the preview wider/nar
   document.addEventListener("pointermove",mv);document.addEventListener("pointerup",up);
   document.addEventListener("pointercancel",up);
 }
+// ---- drag & drop reordering -------------------------------------------------
+// Only the ⠿ handle is draggable: putting draggable="true" on the whole row would break
+// text selection in the inputs/selects the hint and block rows contain.
+// `scope` keeps drags inside their own list (e.g. a block can't jump between hints).
+let _dnd=null;
+function dndStart(ev,kind,i,scope){
+  _dnd={kind,i,scope:scope==null?"":String(scope)};
+  ev.dataTransfer.effectAllowed="move";
+  try{ev.dataTransfer.setData("text/plain",String(i));}catch{}
+  const row=ev.currentTarget.closest("[data-dnd]"); if(row)row.style.opacity=".45";
+}
+function dndEnd(){document.querySelectorAll("[data-dnd]").forEach(r=>{r.style.opacity="";r.style.boxShadow="";});_dnd=null;}
+const _dndOk=(kind,scope)=>!!_dnd&&_dnd.kind===kind&&_dnd.scope===(scope==null?"":String(scope));
+function dndOver(ev,kind,j,scope){
+  if(!_dndOk(kind,scope)||_dnd.i===j)return;
+  ev.preventDefault();ev.dataTransfer.dropEffect="move";
+  ev.currentTarget.style.boxShadow=(j<_dnd.i?"0 -2px 0 0 #18181b":"0 2px 0 0 #18181b"); // where it lands
+}
+function dndLeave(ev){ev.currentTarget.style.boxShadow="";}
+function dndDrop(ev,kind,j,scope){
+  // Rows nest (a hint row contains its blocks' rows). If this row isn't the drag's target list,
+  // return WITHOUT consuming — the event must bubble to the row that does match. Clearing _dnd
+  // here would let an inner row silently eat a drop meant for its parent.
+  if(!_dndOk(kind,scope))return;
+  ev.preventDefault();ev.currentTarget.style.boxShadow="";
+  const i=_dnd.i;dndEnd();
+  if(i===j||i==null)return;
+  const q=wiz.questions[wiz.sel];
+  const arr=kind==="q"?wiz.questions
+    :kind==="hint"?q.hints
+    :kind==="qblock"?q.blocks
+    :kind==="hblock"?q.hints[+scope].blocks:null;
+  if(!arr||!arr[i])return;
+  const sel=wiz.questions[wiz.sel];              // keep the selected question selected
+  const [moved]=arr.splice(i,1);
+  arr.splice(j,0,moved);
+  if(kind==="q")wiz.sel=Math.max(0,wiz.questions.indexOf(sel));
+  drawAdmin();
+  if(kind!=="q")wizSyncPreview();
+}
+const dndHandle=(kind,i,scope)=>`<span draggable="true" ondragstart="dndStart(event,'${kind}',${i},'${scope==null?"":scope}')" ondragend="dndEnd()" title="Drag to reorder" style="cursor:grab;color:#c4c4c8;font-size:12px;line-height:1;user-select:none;flex-shrink:0;padding:0 1px;">⠿</span>`;
+const dndRow=(kind,i,scope)=>`data-dnd="1" ondragover="dndOver(event,'${kind}',${i},'${scope==null?"":scope}')" ondragleave="dndLeave(event)" ondrop="dndDrop(event,'${kind}',${i},'${scope==null?"":scope}')"`;
 function blankQ(){return{title:"",answer:"",intro:"",info:"",case_sensitive:false,blocks:[],hints:[]};}
 function moveWHint(i,d){const n=i+d,hs=wiz.questions[wiz.sel].hints;if(n<0||n>=hs.length)return;[hs[i],hs[n]]=[hs[n],hs[i]];drawAdmin();}
 function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
@@ -868,7 +910,8 @@ function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:1
   <div style="display:flex;flex-direction:column;gap:5px;max-width:200px;"><label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Max teams</label><input type="number" value="${wiz.max_teams}" oninput="setW('max_teams',+this.value)" style="padding:12px 14px;border:1px solid #e4e4e7;border-radius:10px;font-size:14px;"></div>
   <p style="font-size:11.5px;color:#a1a1aa;margin:0;">No fixed duration — the game runs until you stop it (or all teams finish).</p></div>`;}
 function wizStep2(){
-  const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
+  const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div ${dndRow("q",i)} style="display:flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
+    ${dndHandle("q",i)}
     <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
     <div style="font-size:11px;color:#a1a1aa;">${(q.blocks||[]).length} blocks · ${(q.hints||[]).length} hints</div></button>
     <button onclick="moveQ(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↑</button>
@@ -905,21 +948,24 @@ function wizSyncPreview(){
   if(el&&q)el.innerHTML=wizPreviewQ(q,wiz.sel,wiz.questions.length);
 }
 function wqEditor(q){
-  const blocks=q.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
+  const blocks=q.blocks.map((b,i)=>`<div ${dndRow("qblock",i)} style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
+    ${dndHandle("qblock",i)}
     <span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
     <span style="flex:1;font-size:12.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
     <button onclick="moveWBlock(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:12px;padding:2px 3px;">↑</button>
     <button onclick="moveWBlock(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:12px;padding:2px 3px;">↓</button>
     <button onclick="delWBlock(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
   const hints=q.hints.map((h,i)=>{
-    const bl=(h.blocks||[]).map((b,bi)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:8px;padding:6px 9px;background:#fff;">
+    const bl=(h.blocks||[]).map((b,bi)=>`<div ${dndRow("hblock",bi,i)} style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:8px;padding:6px 9px;background:#fff;">
+      ${dndHandle("hblock",bi,i)}
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
       <span style="flex:1;font-size:12px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
       <button onclick="moveHBlock(${i},${bi},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:11px;">↑</button>
       <button onclick="moveHBlock(${i},${bi},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:11px;">↓</button>
       <button onclick="delHBlock(${i},${bi})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;">✕</button></div>`).join("");
-    return `<div style="border:1px solid #e9e9eb;border-radius:9px;padding:9px 11px;background:#fff;display:flex;flex-direction:column;gap:7px;">
+    return `<div ${dndRow("hint",i)} style="border:1px solid #e9e9eb;border-radius:9px;padding:9px 11px;background:#fff;display:flex;flex-direction:column;gap:7px;">
     <div style="display:flex;align-items:center;gap:7px;">
+      ${dndHandle("hint",i)}
       <strong style="font-size:11.5px;color:#18181b;">Hint ${i+1}</strong>
       <span style="font-size:10px;color:#a1a1aa;text-transform:uppercase;letter-spacing:.07em;">reveal after</span>
       <input type="number" min="0" value="${h.reveal_after_min}" oninput="wiz.questions[wiz.sel].hints[${i}].reveal_after_min=+this.value;wizSyncPreview()" style="width:52px;padding:4px 6px;border:1px solid #e4e4e7;border-radius:6px;font-size:12px;"><span style="font-size:10px;color:#a1a1aa;">min</span>
