@@ -759,8 +759,12 @@ function viewWizard(){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
       <div><h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;color:#18181b;">${wiz.id?"Edit game":"Create a game"}</h1>
       <p style="margin:5px 0 0;font-size:12.5px;color:#71717a;">Basics → Questions &amp; hints → Theme → Review.</p></div>
-      <div style="display:flex;gap:7px;flex-wrap:wrap;"><button onclick="downloadXlsxTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">XLSX template</button>
-      <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import XLSX<input type="file" accept=".xlsx,.xls" onchange="importXlsx(event)" style="display:none;"></label></div></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"><button onclick="downloadXlsxTemplate()" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">XLSX template</button>
+      <label style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;display:inline-flex;align-items:center;">Import XLSX<input type="file" accept=".xlsx,.xls" onchange="importXlsx(event)" style="display:none;"></label>
+      <span style="width:1px;height:20px;background:#e4e4e7;margin:0 3px;"></span>
+      <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#52525b;">Save as draft</button>
+      <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Save as ready</button>
+      <button onclick="saveWiz('live')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Save &amp; activate</button></div></div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;">${stepBtns}</div>${body}
     <div style="display:flex;justify-content:space-between;border-top:1px solid #f0f0f1;padding-top:14px;">
       <button onclick="wizStep=Math.max(1,wizStep-1);drawAdmin()" style="border:1px solid #e4e4e7;cursor:pointer;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Back</button>
@@ -895,11 +899,7 @@ function wizStep4(){
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:23px;margin-top:4px;">${esc(wiz.name||"Untitled")}</div>
       <div style="font-size:13px;opacity:.9;margin-top:4px;white-space:pre-line;">${esc(wiz.description||"")}</div>
       <div style="font-size:12px;opacity:.85;margin-top:8px;">${wiz.questions.length} questions · ${hc} hints</div></div>
-    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Player preview — exactly what teams will see (all hints shown)</div>${qs}
-    <div style="display:flex;gap:9px;flex-wrap:wrap;">
-      <button onclick="saveWiz('draft')" style="border:1px solid #e4e4e7;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#52525b;">Save as draft</button>
-      <button onclick="saveWiz('ready')" style="border:1px solid #18181b;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#fff;color:#18181b;">Save as ready</button>
-      <button onclick="saveWiz('live')" style="border:0;cursor:pointer;padding:11px 18px;border-radius:9px;font-weight:600;font-size:13px;background:#18181b;color:#fff;">Save &amp; activate</button></div></div>`;
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Player preview — exactly what teams will see (all hints shown)</div>${qs}</div>`;
 }
 async function saveWiz(status){
   const payload={id:wiz.id||"",name:wiz.name,description:wiz.description,duration_min:wiz.duration_min,max_teams:wiz.max_teams,theme_id:wiz.theme_id,
