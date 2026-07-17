@@ -1,0 +1,25 @@
+-- 0025_per_team_start.sql — staggered / per-team starts.
+--
+-- teams.starts_at (nullable) is a per-team override. A team's effective start is
+--   coalesce(teams.starts_at, games.starts_at)
+-- so NULL means "use the game start" and existing games behave exactly as before.
+--
+-- _state_json: "started" and the player's countdown now key off the team's effective start.
+-- join_game: the first question activates at the team's effective start (so hint timers and the
+--   elapsed clock are anchored correctly per team).
+-- admin_start_now (game-wide): starts every team WITHOUT its own override; teams with an override
+--   keep their scheduled time.
+--
+-- New RPCs:
+--   admin_set_team_start(team, ts|null) — set/clear one team's start; refuses once the team has
+--       started (can't yank a playing team back to a countdown). Realigns the team's Q1
+--       activated_at to the new start.
+--   admin_start_team(team)             — start one team right now.
+--   admin_stagger_starts(game, base, gap_seconds) — assign base + n*gap in join order (created_at);
+--       skips teams already playing/finished. Returns {assigned, skipped}.
+--
+-- admin_roster / admin_monitor now return each team's starts_at + eff_start.
+--
+-- Bodies were applied via MCP (migrations per_team_start, per_team_start_rpcs + admin_monitor).
+alter table teams add column if not exists starts_at timestamptz;
+comment on column teams.starts_at is 'Per-team start override. NULL = use games.starts_at.';

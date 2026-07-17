@@ -824,7 +824,8 @@ function controlsPanel(g){
     <button onclick="delTeam('${t.id}')" title="Remove this team" style="border:1px solid #fecaca;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#dc2626;">Remove</button></span></div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(t.players||[]).map(p=>
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 5px 3px 9px;border-radius:999px;background:#fff;border:1px solid #e4e4e7;color:#52525b;">${esc(p.name)}<button onclick="delPlayer('${p.id}')" title="Remove ${esc(p.name)}" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;line-height:1;padding:0 2px;">✕</button></span>`).join("")
-      ||'<span style="font-size:11.5px;color:#a1a1aa;">No players — this team no longer holds the game open.</span>'}</div></div>`).join("");
+      ||'<span style="font-size:11.5px;color:#a1a1aa;">No players — this team no longer holds the game open.</span>'}</div>
+    ${teamStartCtl(t)}</div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
     <div style="display:flex;gap:7px;flex-wrap:wrap;">
       <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button>
@@ -851,10 +852,53 @@ function controlsPanel(g){
     <div id="lbPanel"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
       ${statCard("Status", dot[g.status][1]+(paused?" · paused":""))}${statCard("Teams", r.team_count??0)}${statCard("Players", r.player_count??0)}${statCard("Starts", g.starts_at?new Date(g.starts_at).toLocaleString():"—")}</div>
-    ${(r.teams||[]).length?`<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
+    ${(r.teams||[]).length?`${staggerCard(g)}<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live · set a start per team</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
   </div>`;
 }
+// Per-team start: shows the team's effective start (own override or the game default), a countdown,
+// and Set / Start now / Clear. Hidden once the team has actually started (can't re-schedule mid-play).
+function teamStartCtl(t){
+  const eff=t.eff_start?Date.parse(t.eff_start):null, now=Date.now()+adminOffset;
+  const started=eff!=null&&now>=eff, rem=eff!=null?Math.max(0,(eff-now)/1000):null;
+  const status=started?`<span style="color:#15803d;font-weight:600;">● Started</span>`
+    :(eff!=null?`<span style="color:#4f46e5;font-weight:600;">starts in ${fmt(rem)}</span> <span style="color:#a1a1aa;">· ${t.starts_at?"own time":"game time"}</span>`
+             :`<span style="color:#a1a1aa;">no start set</span>`);
+  if(started)return `<div style="margin-top:7px;border-top:1px dashed #ececee;padding-top:6px;font-size:11px;">${status}</div>`;
+  return `<div style="margin-top:7px;border-top:1px dashed #ececee;padding-top:6px;display:flex;flex-direction:column;gap:5px;">
+    <div style="font-size:11px;">${status}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+      <input type="datetime-local" id="ts_${t.id}" value="${localDT(t.eff_start)}" style="padding:4px 6px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;color:#18181b;">
+      <button onclick="setTeamStart('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;color:#18181b;">Set</button>
+      <button onclick="startTeamNow('${t.id}')" style="border:0;background:#18181b;color:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Start now</button>
+      ${t.starts_at?`<button onclick="clearTeamStart('${t.id}')" title="Fall back to the game start" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;color:#52525b;">Clear</button>`:""}</div></div>`;
+}
+function staggerCard(g){
+  return `<div style="border:1px solid #e0e7ff;background:#eef2ff;border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+    <div style="font-weight:600;font-size:12.5px;color:#3730a3;">Stagger team starts</div>
+    <div style="font-size:11.5px;color:#4f46e5;line-height:1.5;">Teams start in join order, spaced by the gap. Teams already playing are left untouched.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <label style="font-size:11px;color:#3730a3;display:flex;flex-direction:column;gap:3px;">Base time<input type="datetime-local" id="stgBase" value="${localDT(new Date(Date.now()+adminOffset+120000).toISOString())}" style="padding:5px 7px;border:1px solid #c7d2fe;border-radius:7px;font-size:11.5px;"></label>
+      <label style="font-size:11px;color:#3730a3;display:flex;flex-direction:column;gap:3px;">Gap (min)<input type="number" id="stgGap" value="3" min="0" step="0.5" style="width:64px;padding:5px 7px;border:1px solid #c7d2fe;border-radius:7px;font-size:11.5px;"></label>
+      <button onclick="applyStagger('${g.id}')" style="border:0;background:#4f46e5;color:#fff;cursor:pointer;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;align-self:flex-end;">Apply stagger</button>
+      <button onclick="staggerNow('${g.id}')" title="Base = right now" style="border:1px solid #c7d2fe;background:#fff;color:#3730a3;cursor:pointer;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;align-self:flex-end;">From now</button></div></div>`;
+}
+async function setTeamStart(id){const el=$("ts_"+id);if(!el||!el.value){toast("Pick a time first");return;}
+  const res=await a("admin_set_team_start",{p_team:id,p_starts_at:new Date(el.value).toISOString()});
+  if(res.error){toast(res.error==="already_started"?"That team has already started — can't reschedule":"Error: "+res.error);return;}
+  toast("Start time set");selectGame(selGame.id);}
+function refreshTeams(){if(adminView==="monitor"&&monGameId)pollMon(monGameId);else if(selGame)selectGame(selGame.id);}
+async function startTeamNow(id){const res=await a("admin_start_team",{p_team:id});if(res.error){toast("Error: "+res.error);return;}toast("Team started");refreshTeams();}
+async function clearTeamStart(id){const res=await a("admin_set_team_start",{p_team:id,p_starts_at:null});if(res.error){toast("Error: "+res.error);return;}toast("Now using the game start");selectGame(selGame.id);}
+async function staggerAt(gid,baseIso){
+  const gap=Math.round(Math.max(0,+(($("stgGap")||{}).value||0))*60);
+  const res=await a("admin_stagger_starts",{p_game:gid,p_base:baseIso,p_gap_seconds:gap});
+  if(res.error){toast("Error: "+res.error);return;}
+  toast(`Staggered ${res.assigned} team${res.assigned===1?"":"s"}`+(res.skipped?` · ${res.skipped} already playing`:""));selectGame(gid);}
+async function applyStagger(gid){const b=$("stgBase");if(!b||!b.value){toast("Pick a base time");return;}staggerAt(gid,new Date(b.value).toISOString());}
+// "From now" uses exact-second time — a datetime-local input truncates to the minute, which would
+// silently start the earliest teams up to 59s early.
+function staggerNow(gid){staggerAt(gid,new Date(Date.now()+adminOffset).toISOString());}
 // Two different QRs, deliberately:
 //  · GAME QR  (?pin=XXXX)            -> captains scan it and CREATE a team.
 //  · TEAM QR  (?pin=XXXX&t=abc123)   -> lands the scanner IN that team, no picker.
@@ -1414,12 +1458,14 @@ async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_g
   const tv=$("monTeams");if(tv)tv.innerHTML=`<div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:24px;">
     <h2 style="margin:0 0 14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#18181b;">Team progress</h2><div style="display:flex;flex-direction:column;gap:9px;">
     ${m.teams.length?m.teams.map(t=>{const fin=!!t.finished_at;const pct=fin?100:Math.round(((t.stage_ord||1)-1)/m.total_questions*100);const c=fin?"#15803d":"#6366f1";const open=monExpanded.has(t.id);
+      const effMs=t.eff_start?Date.parse(t.eff_start):null;const waiting=!fin&&effMs!=null&&effMs>Date.now()+adminOffset;const noStart=!fin&&effMs==null;
       return `<div style="border:1px solid #f0f0f1;border-radius:11px;padding:13px 16px;background:#fafafa;display:flex;flex-direction:column;gap:9px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <div onclick="toggleMon('${t.id}')" title="Click for detail" style="display:flex;align-items:baseline;gap:9px;cursor:pointer;user-select:none;"><span style="font-size:11px;color:#a1a1aa;width:9px;">${open?"▾":"▸"}</span><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
-        <div style="display:flex;align-items:baseline;gap:12px;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")}</span>
-          <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
-          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':'#6366f1'};">● ${fin?'Finished':'Playing'}</span>
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":(waiting?"starts in "+fmt((effMs-(Date.now()+adminOffset))/1000):(noStart?"no start set":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")))}</span>
+          <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${(waiting||noStart)?"":fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
+          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':(waiting||noStart?'#4f46e5':'#6366f1')};">● ${fin?'Finished':(waiting?'Waiting':(noStart?'No start':'Playing'))}</span>
+          ${(waiting||noStart)?`<button onclick="startTeamNow('${t.id}')" title="Start this team now" style="border:0;background:#18181b;color:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Start now</button>`:""}
           <button onclick="showTeamQR('${live.pin||""}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Join QR</button>
           <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
