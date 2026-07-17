@@ -92,6 +92,9 @@ async function main() {
       console.log(JSON.stringify((m.teams || []).map(t => ({ name: t.name, players: t.players, stage: t.stage_ord,
         stage_title: t.stage_title, finished: !!t.finished_at, splits: t.splits })), null, 2));
       break; }
+    case "starts": { const m = await A("admin_roster", { p_game: g.id });
+      console.log(JSON.stringify({ game_starts_at: m.game_starts_at,
+        teams: (m.teams || []).map(t => ({ name: t.name, starts_at: t.starts_at, eff: t.eff_start })) })); break; }
     case "results":  console.log(JSON.stringify(await rpc("results", { p_pin: g.pin }), null, 2)); break;
     case "standings":console.log(JSON.stringify(await rpc("standings", { p_pin: g.pin }), null, 2)); break;
     case "teardown": await A("admin_delete_game", { p_game: g.id }); fs.unlinkSync(STATE); console.log("deleted"); break;

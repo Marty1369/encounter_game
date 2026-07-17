@@ -53,6 +53,9 @@ async function main() {
   await ad.locator('button:has-text("ZZ QA Player Flows")').first().click();
   await sleep(1500);
 
+  // per-team starts are opt-in now — switch on Staggered mode first
+  await ad.getByRole("button", { name: /Staggered starts/ }).click();
+  await sleep(1500);
   const panel = await ad.locator("main").innerText();
   ok("controls show the Stagger card", /Stagger team starts/i.test(panel));
   ok("each team card has a Start now button", (await ad.locator('button:has-text("Start now")').count()) >= 3);

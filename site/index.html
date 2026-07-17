@@ -814,6 +814,7 @@ const lbl=t=>`<label style="font-size:10px;font-weight:600;text-transform:upperc
 function controlsPanel(g){
   const r=selRoster||{};
   const ended=g.status==="ended", activated=g.status==="live";
+  const stag=staggerMode(g);   // false = everyone starts together (default)
   const started=g.starts_at&&new Date(g.starts_at).getTime()<=Date.now()+15000; // 15s skew buffer
   const paused=!!g.paused_at;
   const teamsHtml=(r.teams||[]).map(t=>`<div style="border:1px solid #f0f0f1;border-radius:10px;padding:11px 13px;background:#fafafa;">
@@ -825,7 +826,7 @@ function controlsPanel(g){
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(t.players||[]).map(p=>
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 5px 3px 9px;border-radius:999px;background:#fff;border:1px solid #e4e4e7;color:#52525b;">${esc(p.name)}<button onclick="delPlayer('${p.id}')" title="Remove ${esc(p.name)}" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;line-height:1;padding:0 2px;">✕</button></span>`).join("")
       ||'<span style="font-size:11.5px;color:#a1a1aa;">No players — this team no longer holds the game open.</span>'}</div>
-    ${teamStartCtl(t)}</div>`).join("");
+    ${stag?teamStartCtl(t):""}</div>`).join("");
   const reg=`<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Registration")}
     <div style="display:flex;gap:7px;flex-wrap:wrap;">
       <button onclick="toggleReg('${g.id}',${!g.registration_open})" style="border:1px solid ${g.registration_open?'#bbf7d0':'#fecaca'};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${g.registration_open?'#15803d':'#dc2626'};">${g.registration_open?"Open — click to close":"Closed — click to open"}</button>
@@ -852,9 +853,28 @@ function controlsPanel(g){
     <div id="lbPanel"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
       ${statCard("Status", dot[g.status][1]+(paused?" · paused":""))}${statCard("Teams", r.team_count??0)}${statCard("Players", r.player_count??0)}${statCard("Starts", g.starts_at?new Date(g.starts_at).toLocaleString():"—")}</div>
-    ${(r.teams||[]).length?`${staggerCard(g)}<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live · set a start per team</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
+    ${modeToggle(g,stag)}
+    ${(r.teams||[]).length?`${stag?staggerCard(g):""}<div><div style="font-size:12px;font-weight:600;color:#18181b;margin-bottom:8px;">Joined teams — <span style="color:#a1a1aa;font-weight:500;">live${stag?" · set a start per team":""}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${stag?230:200}px,1fr));gap:8px;">${teamsHtml}</div></div>`:'<div style="font-size:12px;color:#a1a1aa;">No teams joined yet.</div>'}
   </div>`;
+}
+// Start mode: OFF (default) = everyone starts together at the single game start; ON = staggered
+// per-team starts. Persisted per game; defaults to ON if the game already has any team override.
+function staggerMode(g){
+  const v=localStorage.getItem("q_stag_"+g.id);
+  if(v!=null)return v==="1";
+  return ((selRoster||{}).teams||[]).some(t=>t.starts_at);   // infer from existing overrides
+}
+function modeToggle(g,stag){
+  const seg=(on,l,sub)=>`<button onclick="setStaggerMode('${g.id}',${on})" style="border:0;cursor:pointer;padding:8px 14px;border-radius:8px;font-weight:600;font-size:12.5px;text-align:left;background:${(stag===on)?'#18181b':'transparent'};color:${(stag===on)?'#fff':'#52525b'};"><div>${l}</div><div style="font-size:10.5px;font-weight:500;opacity:.75;margin-top:1px;">${sub}</div></button>`;
+  return `<div style="display:flex;flex-direction:column;gap:5px;">${lbl("Start mode")}
+    <div style="display:inline-flex;gap:2px;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:10px;padding:3px;align-self:flex-start;flex-wrap:wrap;">
+      ${seg(false,"Everyone together","one shared start")}${seg(true,"Staggered starts","each team on its own clock")}</div></div>`;
+}
+async function setStaggerMode(gid,on){
+  localStorage.setItem("q_stag_"+gid,on?"1":"0");
+  if(!on){const res=await a("admin_clear_team_starts",{p_game:gid});if(res&&res.error){toast("Error: "+res.error);}else toast(res.cleared?`Everyone starts together · cleared ${res.cleared} override${res.cleared===1?"":"s"}`:"Everyone starts together");}
+  selectGame(gid);
 }
 // Per-team start: shows the team's effective start (own override or the game default), a countdown,
 // and Set / Start now / Clear. Hidden once the team has actually started (can't re-schedule mid-play).
@@ -1465,7 +1485,7 @@ async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_g
         <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":(waiting?"starts in "+fmt((effMs-(Date.now()+adminOffset))/1000):(noStart?"no start set":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")))}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${(waiting||noStart)?"":fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
           <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':(waiting||noStart?'#4f46e5':'#6366f1')};">● ${fin?'Finished':(waiting?'Waiting':(noStart?'No start':'Playing'))}</span>
-          ${(waiting||noStart)?`<button onclick="startTeamNow('${t.id}')" title="Start this team now" style="border:0;background:#18181b;color:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Start now</button>`:""}
+          ${(staggerMode({id:id})&&(waiting||noStart))?`<button onclick="startTeamNow('${t.id}')" title="Start this team now" style="border:0;background:#18181b;color:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Start now</button>`:""}
           <button onclick="showTeamQR('${live.pin||""}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Join QR</button>
           <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
