@@ -77,6 +77,7 @@ async function main() {
       console.log(JSON.stringify({ pin: g.pin, status: me.status, starts_at: me.starts_at, paused_at: me.paused_at,
         registration_open: me.registration_open, server_now: l.server_now }, null, 2));
       break; }
+    case "draft":    console.log(JSON.stringify(await A("admin_set_status", { p_game: g.id, p_status: "draft" }))); break;
     case "start":    console.log(JSON.stringify(await A("admin_start_now", { p_game: g.id }))); break;
     case "schedule": {
       const at = new Date(Date.now() + (+args[0] || 60) * 1000).toISOString();
