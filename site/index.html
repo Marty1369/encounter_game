@@ -841,7 +841,9 @@ function controlsPanel(g){
     <div style="display:flex;flex-direction:column;gap:5px;">${lbl("Scheduled start · auto-starts, or start early")}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="datetime-local" id="schedInput" value="${localDT(g.starts_at)}" style="padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:13px;color:#18181b;">
       <button onclick="setSchedule('${g.id}')" style="border:1px solid #e4e4e7;cursor:pointer;padding:8px 13px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Set</button>
-      <button onclick="startNow('${g.id}')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Start game</button></div></div>${reg}</div>`; }
+      <button onclick="startNow('${g.id}')" style="border:0;cursor:pointer;padding:8px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#18181b;color:#fff;">Start game</button></div></div>${reg}
+    <div style="display:flex;flex-direction:column;gap:5px;">${lbl("Not started yet")}
+      <button onclick="deactivateGame('${g.id}')" title="Un-activate: close registration and go back to Ready so you can edit it" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:#52525b;">◀ Back to Ready</button></div></div>`; }
   else { life=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
     <div style="display:flex;flex-direction:column;gap:5px;">${lbl("Game "+(paused?"paused":"running"))}
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -967,6 +969,13 @@ async function delPlayer(id){
   selectGame(selGame.id);
 }
 async function activateGame(id){await a("admin_activate",{p_game:id});toast("Registration open");adminData=await a("admin_list");selectGame(id);}
+async function deactivateGame(id){
+  const r=(selRoster||{}),n=(r.teams||[]).length;
+  if(!confirm(`Take this game back to Ready?\n\nRegistration closes${n?` and ${n} joined team${n===1?"":"s"} will be removed`:""}. You'll be able to edit it again, then re-activate.`))return;
+  const res=await a("admin_deactivate",{p_game:id});
+  if(res&&res.error){toast(res.error==="already_started"?"Game already started — use End game instead":"Error: "+res.error);return;}
+  toast("Back to Ready");adminData=await a("admin_list");selectGame(id);
+}
 async function pauseGame(id){const m=prompt("Message players see while paused:","We've paused briefly — hang tight!");if(m===null)return;await a("admin_pause",{p_game:id,p_message:m});toast("Game paused");adminData=await a("admin_list");selectGame(id);}
 async function resumeGame(id){await a("admin_resume",{p_game:id});toast("Game resumed");adminData=await a("admin_list");selectGame(id);}
 async function renameGame(id){const g=adminData.games.find(x=>x.id===id)||selGame||{};const n=prompt("New game name:",g.name||"");if(n===null||!n.trim())return;await a("admin_rename",{p_game:id,p_name:n.trim()});toast("Renamed");adminData=await a("admin_list");selectGame(id);}
