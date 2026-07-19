@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Cache-Control" content="no-store, max-age=0" />
 <title>Questline — live riddle platform</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#111113" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<meta name="apple-mobile-web-app-title" content="Questline" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -39,7 +45,7 @@
     <div style="width:30px;height:30px;border-radius:8px;background:#fafafa;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:#111113;">Q</div>
     <div>
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;line-height:1.1;letter-spacing:.01em;">Questline</div>
-      <div style="font-size:10.5px;color:#71717a;letter-spacing:.08em;text-transform:uppercase;">Live riddle platform · <span id="buildTag" title="Which build you are looking at">b25</span></div>
+      <div style="font-size:10.5px;color:#71717a;letter-spacing:.08em;text-transform:uppercase;">Live riddle platform · <span id="buildTag" title="Which build you are looking at">b27</span></div>
     </div>
   </div>
   <div id="roleTabs" style="display:flex;align-items:center;gap:2px;background:#1c1c1f;border-radius:10px;padding:3px;border:1px solid #27272a;"></div>
@@ -104,6 +110,23 @@ function safeUrl(u){try{const p=new URL(u,location.origin).protocol;return(p==="
 function fmt(sec){sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,p=n=>String(n).padStart(2,"0");return h?h+":"+p(m)+":"+p(s):p(m)+":"+p(s);}
 let toastT;function toast(m){const t=$("toast");t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,1900);}
 
+// ---- back-button navigation ------------------------------------------------
+// Kiekvienas atšaukiamas UI perėjimas (ekranas, tab'as, modalas) įdeda į steką "undo"
+// uždarymą ir pushState. Telefono "atgal" tada grąžina į ankstesnį vaizdą, o ne išmeta
+// iš programos; kai stekas tuščias — "atgal" elgiasi įprastai (išeina iš puslapio).
+let navStack=[];
+function navPush(tag,undo){navStack.push({tag,undo});history.pushState({qnav:navStack.length},"");}
+// Programinis uždarymas (mygtukas "Close" ir pan.): suvartoja viršutinį steko įrašą be undo.
+function navDone(tag){const top=navStack[navStack.length-1];if(top&&top.tag===tag){top.undo=null;history.back();}}
+// popstate lygiuojasi į state.qnav (mūsų steko gylį tame istorijos taške): atgal — nuima
+// įrašus iki to gylio; pirmyn ar pasenęs gilesnis state (pvz., po rolės perjungimo) —
+// atšokama history.back(), kad naršyklės istorija ir stekas vėl sutaptų.
+window.addEventListener("popstate",e=>{
+  const target=(e.state&&e.state.qnav)||0;
+  if(target>navStack.length){history.back();return;}
+  while(navStack.length>target){const en=navStack.pop();if(en&&en.undo){try{en.undo();}catch{}}}
+});
+
 // ---- role ----
 let role="player";
 // A player who is in a game gets Game | Leaderboard instead of Player | Game creator —
@@ -111,7 +134,14 @@ let role="player";
 // (and on the login screen) the original Player | Game creator choice stays.
 let pView="game";                                   // game | leaderboard
 const pInGame=()=>!!(pToken()&&pGameState&&!pGameState.finished&&!pGameState.expired);
-function pGo(v){pView=v;renderPlayer();}
+function pGo(v,push=true){
+  if(v===pView)return;
+  if(push){
+    if(v!=="game")navPush("ptab",()=>{pView="game";renderPlayer();});
+    else navDone("ptab");                       // "Back to the game" mygtukas = tas pats kaip "atgal"
+  }
+  pView=v;renderPlayer();
+}
 const _tab=(label,on,onclick)=>`<button onclick="${onclick}" style="border:0;cursor:pointer;padding:8px 20px;border-radius:8px;font-weight:600;font-size:12.5px;letter-spacing:.02em;background:${on?"#fafafa":"transparent"};color:${on?"#111113":"#a1a1aa"};">${label}</button>`;
 function renderTabs(){
   const el=$("roleTabs");if(!el)return;
@@ -120,6 +150,7 @@ function renderTabs(){
     : _tab("Player",role==="player","setRole('player')")+_tab("Game creator",role==="admin","setRole('admin')");
 }
 function setRole(r){role=r;if(monTimer){clearInterval(monTimer);monTimer=null;}
+  navStack.length=0;   // kitos rolės ekranų "atgal" įrašai nebegalioja; popstate juos atsuks pats
   $("player").classList.toggle("hidden",r!=="player");
   $("admin").classList.toggle("hidden",r!=="admin");
   renderTabs();
@@ -170,6 +201,7 @@ function resolveAutoTeam(){
 async function pEnter(){ if(!pState.active||pState.active.status!=="live"||!pState.name.trim())return;
   clearTimeout(pLookupT);            // a late lookup must not null out the game we just entered
   if(pState.autoTeam)return pJoin(pState.autoTeam);   // came from a team QR — no picker needed
+  navPush("teams",()=>{pState.screen="join";renderPlayer();});
   pState.screen="teams"; renderPlayer(); }
 function pJoinIndex(i){const t=(pState.active&&pState.active.teams||[])[i];if(t)pJoin(t.name);}
 async function pJoin(team){
@@ -180,6 +212,7 @@ async function pJoin(team){
   try{const res=await rpc("join_game",{p_pin:pin,p_team:t,p_name:pState.name});
     if(res.error){toast(joinErr(res.error));return;}
     localStorage.setItem("q_token",res.session_token);localStorage.setItem("q_pin",pin.toUpperCase());
+    navDone("teams");                 // įstojus atgal nebeveda į komandų pasirinkimą
     applyState(res.state);pState.myTeam=t;pState.screen="lobby";renderPlayer();
   }catch{toast("Could not join.");}
 }
@@ -270,6 +303,37 @@ function showNextNotice(){
 }
 function dismissNotice(){$("noticePop").classList.add("hidden");if(noticeQ.length)setTimeout(showNextNotice,180);}
 // ---- Countdown to start ----
+// ---- PWA įdiegimas (Add to Home Screen) ----------------------------------------------------
+// Android/Chrome duoda beforeinstallprompt → rodome mygtuką; iOS — instrukcija per Share meniu.
+// Jei jau atidaryta kaip programėlė (standalone) — kortelė nerodoma.
+let bipEvt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();bipEvt=e;const el=$("pInstall");if(el)el.outerHTML=pInstallCard();});
+const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+function pInstallApp(){if(!bipEvt)return;bipEvt.prompt();bipEvt.userChoice.finally(()=>{bipEvt=null;const el=$("pInstall");if(el)el.remove();});}
+function pInstallCard(){
+  if(isStandalone())return "";
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  let body;
+  if(bipEvt)body=`<button onclick="pInstallApp()" style="border:0;cursor:pointer;padding:12px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:13.5px;background:var(--th-primary);color:var(--th-onPrimary);width:100%;">📲 Install as an app</button>`;
+  else if(ios)body=`<div style="font-size:12.5px;color:var(--th-inkSoft);line-height:1.6;text-align:left;">In Safari tap <b>Share</b> <span style="display:inline-block;border:1px solid var(--th-line);border-radius:5px;padding:0 6px;font-size:11px;">⬆</span> and choose <b>Add to Home Screen</b> — the game opens full-screen like an app.</div>`;
+  else body=`<div style="font-size:12.5px;color:var(--th-inkSoft);line-height:1.6;text-align:left;">In your browser menu <b>⋮</b> choose <b>Install app</b> (or <b>Add to Home screen</b>) — the game opens full-screen like an app.</div>`;
+  return `<div id="pInstall" style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;display:flex;flex-direction:column;gap:9px;">
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--th-muted);text-align:left;">📲 Save Questline to your phone</div>
+    ${body}</div>`;
+}
+// Žaidimo informacijos kortelė laukimo ekranui: aprašymas + klausimų skaičius + startas.
+function pGameInfoCard(){
+  const st=pGameState||{};
+  const desc=st.game_description||((pState.active||{}).description)||"";
+  const meta=[];
+  if(st.total_questions)meta.push(st.total_questions+" challenge"+(st.total_questions===1?"":"s"));
+  if(st.starts_at)meta.push("starts "+new Date(st.starts_at).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}));
+  if(!desc&&!meta.length)return "";
+  return `<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;display:flex;flex-direction:column;gap:7px;text-align:left;">
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--th-muted);">About this game</div>
+    ${desc?`<div style="font-size:13px;color:var(--th-ink);line-height:1.55;white-space:pre-line;">${esc(desc)}</div>`:""}
+    ${meta.length?`<div style="font-size:11.5px;color:var(--th-muted);">${meta.map(esc).join(" · ")}</div>`:""}</div>`;
+}
 function pCountdown(){
   const st=pGameState;
   const scheduled=!!st.starts_at;                // no schedule yet = host simply hasn't started
@@ -283,6 +347,8 @@ function pCountdown(){
     :`<div style="font-size:34px;margin-top:6px;">⏳</div>
     <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:20px;color:var(--th-primary);">Waiting for the host</div>
     <div style="font-size:13px;color:var(--th-inkSoft);">You're in. The first challenge opens by itself the moment the host starts the game — keep this screen open.</div>`}
+    ${pGameInfoCard()}
+    ${pInstallCard()}
     ${inviteCard(st.team.name)}</div>`;
   renderQR("pQR",inviteURL());
 }
@@ -338,6 +404,8 @@ function inviteCard(teamName){
     <button onclick="copyInvite()" style="border:1px solid var(--th-line);cursor:pointer;padding:9px 16px;border-radius:var(--th-rBtn);font-weight:600;font-size:12.5px;background:var(--th-field);color:var(--th-ink);">Copy invite link</button></div>`;
 }
 // ---- Lobby ----
+// Iš lobby į žaidimą — telefono "atgal" grąžina į lobby, o ne išmeta iš puslapio.
+function pEnterGame(){navPush("lobby",()=>{pState.screen="lobby";renderPlayer();});pState.screen="game";renderPlayer();}
 function pLobby(){
   const st=pGameState,g=pState.active||{};
   const others=(g.teams||[]).map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;border-radius:var(--th-rInput);background:var(--th-field);border:1px solid var(--th-line);">
@@ -351,12 +419,14 @@ function pLobby(){
         <span style="font-size:11px;font-weight:600;letter-spacing:.06em;padding:4px 11px;border-radius:var(--th-rBtn);border:1px solid var(--th-line);color:var(--th-inkSoft);font-family:'Space Grotesk',monospace;">${esc(localStorage.getItem("q_pin"))}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:var(--th-rBtn);background:var(--th-field);border:1px solid var(--th-line);color:var(--th-ink);">${esc(pState.name)}</span></div>
       <div style="font-size:11.5px;color:var(--th-muted);">Share the code or QR below so teammates land in <b>${esc(pState.myTeam||st.team.name)}</b>.</div></div>
+    ${pGameInfoCard()}
+    ${pInstallCard()}
     ${inviteCard(pState.myTeam||st.team.name)}
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:22px;text-align:center;">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--th-muted);">Game in progress</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:48px;font-variant-numeric:tabular-nums;color:var(--th-primary);margin-top:6px;letter-spacing:.01em;">${fmt((serverNow()-Date.parse(pElapsedBase(st)))/1000)}</div>
       <div style="font-size:12px;color:var(--th-inkSoft);margin-top:4px;">elapsed — the game runs until every team finishes</div></div>
-    <button onclick="pState.screen='game';renderPlayer()" style="border:0;cursor:pointer;padding:15px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15.5px;background:var(--th-primary);color:var(--th-onPrimary);">Enter the game</button>
+    <button onclick="pEnterGame()" style="border:0;cursor:pointer;padding:15px;border-radius:var(--th-rBtn);font-family:var(--th-fontDisplay);font-weight:600;font-size:15.5px;background:var(--th-primary);color:var(--th-onPrimary);">Enter the game</button>
     <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">In the lobby</div>
       <span style="font-size:11px;color:var(--th-muted);letter-spacing:.06em;text-transform:uppercase;">${(g.teams||[]).length} teams</span></div>
@@ -589,17 +659,23 @@ async function pDone(){
   const doneTime=mine?fmt(mine.overall_seconds||0):"—";
   const tabBtn=(k,l)=>`<button onclick="pDoneTab='${k}';pDone()" style="flex:1;border:0;cursor:pointer;padding:9px;border-radius:var(--th-rInput);font-weight:600;font-size:12.5px;background:${pDoneTab===k?'var(--th-primary)':'var(--th-field)'};color:${pDoneTab===k?'var(--th-onPrimary)':'var(--th-inkSoft)'};">${l}</button>`;
   const body=pDoneTab==="per"?pResPerQ(res,me):pResOverall(res,me);
+  // Pabaigos scena: organizatoriaus sukonfigūruoti blokai + (pasirinktinai) leaderboard.
+  const es=st.end_scene||null;
+  const esBlocks=(es&&Array.isArray(es.blocks)&&es.blocks.length)
+    ?`<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:10px;animation:popin .35s ease;">${es.blocks.map(pBlock).join("")}</div>`:"";
+  const showLb=!es||es.show_leaderboard!==false;
   $("pscreen").innerHTML=`<div style="padding:36px 24px;display:flex;flex-direction:column;gap:18px;animation:fadeup .3s ease;">
     <div style="padding:6px 0;"><div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--th-muted);">${kicker}</div>
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:34px;line-height:1.1;margin-top:8px;letter-spacing:var(--th-displayTracking);animation:popin .35s ease;">${headline}</div>
       <div style="font-size:14px;color:var(--th-inkSoft);margin-top:6px;">${sub}</div></div>
+    ${esBlocks}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Final rank</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;">${myRank}</div></div>
       <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:16px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--th-muted);">Total time</div><div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:32px;color:var(--th-primary);margin-top:4px;font-variant-numeric:tabular-nums;">${doneTime}</div></div></div>
-    <div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:12px;">
+    ${showLb?`<div style="background:var(--th-card);border:1px solid var(--th-line);border-radius:var(--th-rCard);padding:18px;display:flex;flex-direction:column;gap:12px;">
       <div style="font-family:var(--th-fontDisplay);font-weight:var(--th-displayWeight);font-size:15px;">Leaderboard</div>
       <div style="display:flex;gap:6px;">${tabBtn("overall","Overall")}${tabBtn("per","Per question")}</div>
-      <div style="display:flex;flex-direction:column;">${body}</div></div>
+      <div style="display:flex;flex-direction:column;">${body}</div></div>`:""}
     <button onclick="resetView()" style="border:1px solid var(--th-line);cursor:pointer;padding:13px;border-radius:var(--th-rBtn);font-weight:600;font-size:13.5px;background:transparent;color:var(--th-ink);">Back to start</button></div>`;
 }
 
@@ -632,7 +708,24 @@ function adminTimerText(){
   return now<t?'<span style="color:#4f46e5;">starts in '+fmt((t-now)/1000)+'</span>'
              :'<span style="color:#15803d;">'+fmt((now-t)/1000)+'</span>';
 }
-setInterval(()=>{if(role!=="admin")return;const el=document.getElementById("adminTimer");if(el)el.innerHTML=adminTimerText();},1000);
+// Hintų countdown'ai admino pusėje (Games kortelės + Live monitor). Pauzės metu tekstas
+// paliekamas "paused". Kai laikas sueina — vienas throttled refresh, kad būsena atsinaujintų.
+let _cdDueT=0;
+function tickHintCds(){
+  const paused=(adminView==="monitor")?!!(monLast&&monLast.paused_at):!!(selRoster&&selRoster.paused_at);
+  let due=false;
+  document.querySelectorAll(".rosterCd,.monCd").forEach(el=>{
+    const ord=el.dataset.ord;
+    if(paused){el.textContent="hint "+ord+" · paused";return;}
+    const rem=(+el.dataset.at-(Date.now()+adminOffset))/1000;
+    if(rem<=0){el.textContent="hint "+ord+" unlocking…";due=true;}
+    else el.textContent="hint "+ord+" in "+fmt(rem);
+  });
+  // Nekeisti vaizdo, kol adminas rašo (pvz., datų/starto laukuose) — kaip ir 6 s poll'as.
+  const ae=document.activeElement;
+  if(due&&Date.now()-_cdDueT>4000&&!(ae&&["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))){_cdDueT=Date.now();refreshTeams();}
+}
+setInterval(()=>{if(role!=="admin")return;const el=document.getElementById("adminTimer");if(el)el.innerHTML=adminTimerText();tickHintCds();},1000);
 
 // ===================== ADMIN =====================
 let adminData=null,adminView="games",selGame=null,wiz=null,wizStep=1;
@@ -675,7 +768,10 @@ function sideMenu(){
       <div><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:#a1a1aa;">Selected</div><div style="font-weight:600;font-size:13px;color:#18181b;margin-top:2px;">${selGame?esc(selGame.name):"—"}</div></div></div>
   </aside>`;
 }
-function adminGo(v){if(v!=="monitor"&&monTimer){clearInterval(monTimer);monTimer=null;}adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
+function adminGo(v,push=true){
+  if(v!=="monitor"&&monTimer){clearInterval(monTimer);monTimer=null;}
+  if(push&&v!==adminView){const prev=adminView;navPush("aview",()=>adminGo(prev,false));}
+  adminView=v;if(v==="wizard"&&!wiz)newWiz();drawAdmin();}
 function drawAdmin(){
   const _ls=$("wizList"), _keep=_ls?_ls.scrollTop:null;   // selecting a question must not jump the list back to the top
   let main="";
@@ -707,7 +803,9 @@ function viewGames(){
     ${selGame?selectedDetail():""}</section>`;
 }
 let selRoster=null;
-async function selectGame(id){selGame=await a("admin_get_game",{p_game:id});selRoster=await a("admin_roster",{p_game:id});drawAdmin();
+async function selectGame(id){
+  if(!selGame||selGame.id!==id)navPush("selg",()=>{selGame=null;selRoster=null;drawAdmin();}); // atgal = grįžti į sąrašą
+  selGame=await a("admin_get_game",{p_game:id});selRoster=await a("admin_roster",{p_game:id});drawAdmin();
   if(selGame&&selGame.status==="ended")loadEndResults(selGame.pin);
 }
 // Keep the admin Games view honest about status: refresh the list and flip LIVE→ENDED on its own,
@@ -758,13 +856,93 @@ async function showHintFor(teamId){
   if(!hs.length){toast("No hints on the team's current task");return;}
   const next=hs.find(h=>!h.shown);
   if(!next){toast("All hints already shown");return;}
+  if(!confirm("Reveal hint "+next.ord+" ("+hs.length+" total on this task) to the team now?"))return;
   await a("admin_show_hint",{p_team:teamId,p_hint:next.id});toast("Revealed hint "+next.ord+" to the team");
-  if(adminView==="monitor")startMon();
+  refreshTeams();
+}
+// Konkretaus hinto atskleidimas iš Live monitor grafiko.
+async function revealHint(teamId,hintId,ord){
+  if(!confirm("Reveal hint "+ord+" to this team now?"))return;
+  await a("admin_show_hint",{p_team:teamId,p_hint:hintId});toast("Revealed hint "+ord);
+  refreshTeams();
 }
 async function discardTask(gameId,ord,title){
   const reason=prompt('Discard "'+title+'"? Teams on it move on; time is credited back to teams that already solved it.\n\nCause (shown to all players):',"");
   if(reason===null)return;
   await a("admin_discard_task",{p_game:gameId,p_ord:ord,p_reason:reason});toast("Task discarded — players notified");selectGame(gameId);}
+// ---- Pabaigos scenos redagavimas pasirinktame žaidime (veikia ir live, ir ended) -----------
+function esceneOf(g){const s=g.end_scene||{};return{blocks:(s.blocks||[]).slice(),show_leaderboard:s.show_leaderboard!==false};}
+async function saveEndScene(scene){const r=await a("admin_set_end_scene",{p_game:selGame.id,p_scene:scene});if(r&&r.error){toast("Error: "+r.error);return;}toast("End scene saved");selectGame(selGame.id);}
+function esAddLive(){
+  const t=(prompt("Block type: text / image / video / audio / link","text")||"").trim().toLowerCase();
+  if(!t)return; if(!["text","image","video","audio","link"].includes(t)){toast("Unknown block type");return;}
+  const c=prompt(t==="text"?"Text:":"URL:","");if(c===null||!c.trim())return;
+  const scene=esceneOf(selGame);scene.blocks.push(t==="text"?{type:"text",text:c.trim()}:{type:t,url:c.trim()});saveEndScene(scene);}
+function esEditLive(i){const scene=esceneOf(selGame);const b=scene.blocks[i];if(!b)return;
+  const cur=b.text!=null?b.text:(b.url||"");const c=prompt(b.type==="text"?"Text:":"URL:",cur);if(c===null)return;
+  if(b.type==="text")b.text=c;else b.url=c;saveEndScene(scene);}
+function esDelLive(i){const scene=esceneOf(selGame);if(!scene.blocks[i])return;if(!confirm("Remove this block from the final scene?"))return;scene.blocks.splice(i,1);saveEndScene(scene);}
+function esToggleLb(){const scene=esceneOf(selGame);scene.show_leaderboard=!scene.show_leaderboard;saveEndScene(scene);}
+function endScenePanel(g){
+  const s=g.end_scene||{blocks:[]};const lb=(g.end_scene?g.end_scene.show_leaderboard!==false:true);
+  const rows=(s.blocks||[]).map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #f0f0f1;border-radius:8px;padding:6px 10px;background:#fff;">
+    <span style="font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
+    <span style="flex:1;font-size:12px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.text!=null?b.text:(b.url||""))}</span>
+    <button onclick="esEditLive(${i})" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:600;color:#18181b;">Edit</button>
+    <button onclick="esDelLive(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
+  return `<div style="border-top:1px solid #f0f0f1;padding-top:14px;display:flex;flex-direction:column;gap:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;">
+      <div><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Final scene</span>
+      <span style="font-size:11px;color:#a1a1aa;margin-left:8px;">what players see when the game ends — editable any time, even live</span></div>
+      <span style="display:flex;gap:6px;">
+        <button onclick="esToggleLb()" style="border:1px solid ${lb?'#bbf7d0':'#e4e4e7'};background:#fff;cursor:pointer;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;color:${lb?'#15803d':'#52525b'};">Leaderboard: ${lb?"shown":"hidden"}</button>
+        <button onclick="esAddLive()" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;color:#18181b;">Add block</button></span></div>
+    ${rows||'<div style="font-size:12px;color:#a1a1aa;">No blocks — players see the default "Game over" screen'+(lb?" with the leaderboard":"")+'.</div>'}</div>`;
+}
+// ---- Hintų peržiūra/redagavimas pasirinktame žaidime ---------------------------------------
+// Redaguoti (laiką ir turinį) galima tik hintus, kurių dar nematė NĖ VIENA komanda — serveris
+// (admin_update_hint) tai užtikrina; jau parodytam grąžina already_shown.
+let qHintsOpen=new Set();
+function toggleQHints(o){qHintsOpen.has(o)?qHintsOpen.delete(o):qHintsOpen.add(o);drawAdmin();}
+function _findHint(hid){for(const q of (selGame.questions||[]))for(const h of (q.hints||[]))if(h.id===hid)return h;return null;}
+async function _pushHint(hid,patch){
+  const r=await a("admin_update_hint",{p_hint:hid,p_reveal_after_min:patch.min??null,p_blocks:patch.blocks??null,p_text:patch.text??null});
+  if(r&&r.error){toast(r.error==="already_shown"?"A team has already seen this hint — it can no longer be edited":"Error: "+r.error);return;}
+  toast("Hint updated");selectGame(selGame.id);}
+function hintBlocksOf(h){let bl=(h.blocks||[]).slice();
+  if(!bl.length){if(h.text)bl.push({type:"text",text:h.text});if(h.media_type&&h.media_url)bl.push({type:h.media_type,url:h.media_url});}
+  return bl;}
+function hintTime(hid){const h=_findHint(hid);if(!h)return;
+  const v=prompt("Reveal after how many minutes from the start of the task?",h.reveal_after_min);if(v===null)return;
+  const n=parseInt(v,10);if(isNaN(n)||n<0){toast("Enter a whole number of minutes");return;}
+  _pushHint(hid,{min:n});}
+function hintEditBlock(hid,i){const h=_findHint(hid);if(!h)return;const bl=hintBlocksOf(h);const b=bl[i];if(!b)return;
+  const cur=b.text!=null?b.text:(b.url||"");const c=prompt(b.type==="text"?"Text:":"URL:",cur);if(c===null)return;
+  if(b.type==="text")b.text=c;else b.url=c;_pushHint(hid,{blocks:bl});}
+function hintDelBlock(hid,i){const h=_findHint(hid);if(!h)return;const bl=hintBlocksOf(h);if(!bl[i])return;
+  if(!confirm("Remove this block from the hint?"))return;bl.splice(i,1);_pushHint(hid,{blocks:bl});}
+function hintAddBlock(hid){const h=_findHint(hid);if(!h)return;
+  const t=(prompt("Block type: text / image / video / audio / link","text")||"").trim().toLowerCase();
+  if(!t)return; if(!["text","image","video","audio","link"].includes(t)){toast("Unknown block type");return;}
+  const c=prompt(t==="text"?"Text:":"URL:","");if(c===null||!c.trim())return;
+  const bl=hintBlocksOf(h);bl.push(t==="text"?{type:"text",text:c.trim()}:{type:t,url:c.trim()});_pushHint(hid,{blocks:bl});}
+function qHintRows(x){
+  return (x.hints||[]).map(h=>{
+    const bl=hintBlocksOf(h);
+    const rows=bl.map((b,i)=>`<div style="display:flex;align-items:center;gap:7px;border:1px solid #ececee;border-radius:7px;padding:4px 8px;background:#fff;">
+      <span style="font-size:8.5px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
+      <span style="flex:1;font-size:11.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.text!=null?b.text:(b.url||""))}</span>
+      <button onclick="hintEditBlock('${h.id}',${i})" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:5px;padding:1px 7px;font-size:10px;font-weight:600;color:#18181b;">Edit</button>
+      <button onclick="hintDelBlock('${h.id}',${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;">✕</button></div>`).join("");
+    return `<div style="border:1px solid #ececee;border-radius:9px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+        <strong style="font-size:11.5px;color:#18181b;">Hint ${h.ord}</strong>
+        <span style="font-size:11px;color:#71717a;">reveals after <b style="color:#18181b;">${h.reveal_after_min} min</b></span>
+        <span style="margin-left:auto;display:flex;gap:5px;">
+          <button onclick="hintTime('${h.id}')" title="Change the reveal time (only if no team has seen it yet)" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:6px;padding:2px 9px;font-size:10.5px;font-weight:600;color:#18181b;">Change time</button>
+          <button onclick="hintAddBlock('${h.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:6px;padding:2px 9px;font-size:10.5px;font-weight:600;color:#18181b;">Add block</button></span></div>
+      ${rows||'<div style="font-size:11px;color:#d97706;">⚠ Empty hint — no content.</div>'}</div>`;}).join("");
+}
 function selectedDetail(){
   const g=selGame,d=dot[g.status]||dot.draft;
   const btn=(label,onclick,danger)=>`<button onclick="${onclick}" style="border:1px solid ${danger?"#fecaca":"#e4e4e7"};cursor:pointer;padding:9px 15px;border-radius:9px;font-weight:600;font-size:12.5px;background:#fff;color:${danger?"#dc2626":"#18181b"};">${label}</button>`;
@@ -789,6 +967,7 @@ function selectedDetail(){
       <div style="font-size:12px;color:#71717a;margin-top:7px;">PIN <strong style="font-family:'Space Grotesk',monospace;">${g.pin}</strong> · ${g.questions.length} questions</div></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;">${actions.join("")}</div></div>
     ${controlsPanel(g)}
+    ${endScenePanel(g)}
     ${q?`<div style="border-top:1px solid #f0f0f1;padding-top:16px;"><h2 style="margin:0 0 12px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Questions</h2><div style="display:flex;flex-direction:column;gap:9px;">${qList(g)}</div></div>`:""}</div>`;
 }
 function statCard(k,v){return `<div style="background:#fafafa;border:1px solid #f0f0f1;border-radius:10px;padding:13px;"><div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${k}</div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:#18181b;margin-top:3px;">${v}</div></div>`;}
@@ -808,9 +987,23 @@ function qList(g){return g.questions.map((x,i)=>`<div style="border:1px solid #f
     ${x.intro?`<div style="font-size:12.5px;color:#52525b;margin-top:5px;line-height:1.5;">${esc(x.intro)}</div>`:""}
     ${x.info?`<div style="font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:6px 9px;margin-top:6px;">ⓘ ${esc(x.info)}</div>`:""}
     ${prepBlock(x.prep)}
-    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${(x.blocks||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.blocks.length} blocks</span>`:""}${(x.hints||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.hints.length} hints</span>`:""}${String(x.prep||"").trim()?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;">prep</span>`:""}</div></div>`).join("");
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;align-items:center;">${(x.blocks||[]).length?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f0f0f1;color:#52525b;">${x.blocks.length} blocks</span>`:""}${(x.hints||[]).length?`<button onclick="toggleQHints(${x.ord})" title="View / edit this question's hints" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;color:#18181b;">${qHintsOpen.has(x.ord)?"▾":"▸"} ${x.hints.length} hints</button>`:""}${String(x.prep||"").trim()?`<span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;">prep</span>`:""}</div>
+    ${qHintsOpen.has(x.ord)?`<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">${qHintRows(x)}</div>`:""}</div>`).join("");
 }
 const lbl=t=>`<label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">${t}</label>`;
+// Komandos eigos eilutė Games meniu kortelėje: dabartinė užduotis + countdown iki kito hinto.
+// Countdown'ą kas sekundę atnaujina admin tickeris (klasė rosterCd); pauzės metu — užšaldyta.
+function rosterProgress(t,paused){
+  if(t.finished_at)return `<div style="margin-top:5px;font-size:11.5px;color:#15803d;font-weight:600;">🏁 Finished</div>`;
+  if(!t.stage_ord)return "";
+  const next=t.next_hint_at
+    ?`<span class="rosterCd" data-at="${Date.parse(t.next_hint_at)}" data-ord="${t.next_hint_ord}" style="color:#4f46e5;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;">${paused?("hint "+t.next_hint_ord+" · paused"):("hint "+t.next_hint_ord+" in …")}</span>`
+    :(t.hints_total?'<span style="color:#a1a1aa;">all hints out</span>':'<span style="color:#a1a1aa;">no hints</span>');
+  return `<div style="margin-top:5px;display:flex;gap:9px;flex-wrap:wrap;font-size:11.5px;color:#52525b;align-items:baseline;">
+    <span style="white-space:nowrap;"><b style="color:#18181b;">Q${t.stage_ord}</b> ${esc(t.stage_title||"")}</span>
+    <span title="Hints shown / total on this task" style="white-space:nowrap;">💡 ${t.hints_shown||0}/${t.hints_total||0}</span>
+    ${next}</div>`;
+}
 function controlsPanel(g){
   const r=selRoster||{};
   const ended=g.status==="ended", activated=g.status==="live";
@@ -823,6 +1016,7 @@ function controlsPanel(g){
     <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">View</button>
     <button onclick="showHintFor('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#18181b;">Show hint</button>
     <button onclick="delTeam('${t.id}')" title="Remove this team" style="border:1px solid #fecaca;background:#fff;cursor:pointer;border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;color:#dc2626;">Remove</button></span></div>
+    ${activated?rosterProgress(t,paused):""}
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${(t.players||[]).map(p=>
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 5px 3px 9px;border-radius:999px;background:#fff;border:1px solid #e4e4e7;color:#52525b;">${esc(p.name)}<button onclick="delPlayer('${p.id}')" title="Remove ${esc(p.name)}" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:11px;line-height:1;padding:0 2px;">✕</button></span>`).join("")
       ||'<span style="font-size:11.5px;color:#a1a1aa;">No players — this team no longer holds the game open.</span>'}</div>
@@ -926,7 +1120,10 @@ function staggerNow(gid){staggerAt(gid,new Date(Date.now()+adminOffset).toISOStr
 //  · TEAM QR  (?pin=XXXX&t=abc123)   -> lands the scanner IN that team, no picker.
 const teamCode=id=>String(id||"").replace(/-/g,"").slice(0,6);
 const teamJoinURL=(pin,teamId)=>location.origin+location.pathname+"?pin="+encodeURIComponent(pin)+"&t="+teamCode(teamId);
+// QR modalas užsidaro ir telefono "atgal" mygtuku.
+function qrNavOpen(){if($("qrPop").classList.contains("hidden"))navPush("qr",()=>$("qrPop").classList.add("hidden"));}
 function showJoinQR(pin){
+  qrNavOpen();
   $("qrTitle").textContent="Scan to join the game";
   $("qrCode").style.fontSize="30px";
   $("qrCode").textContent=pin;
@@ -937,6 +1134,7 @@ function showJoinQR(pin){
 // A joining code for a team that is already in the game — hand it to a latecomer and they land
 // straight in that team. Same thing the captain's own invite QR does.
 function showTeamQR(pin,teamId){
+  qrNavOpen();
   const t=(((selRoster||{}).teams||[]).find(x=>x.id===teamId))
         ||(((monLast||{}).teams||[]).find(x=>x.id===teamId))||{};
   const code=pin+"-"+teamCode(teamId);
@@ -947,7 +1145,7 @@ function showTeamQR(pin,teamId){
   $("qrPop").classList.remove("hidden");
   renderQR("qrBox",teamJoinURL(pin,teamId));
 }
-function closeQR(){$("qrPop").classList.add("hidden");}
+function closeQR(){$("qrPop").classList.add("hidden");navDone("qr");}
 // Removing a team signs its players out (their session stops resolving) and deletes the team's
 // progress — say so plainly rather than after the fact.
 async function delTeam(id){
@@ -1057,10 +1255,11 @@ function wqTabs(){
 }
 function blankQ(){return{title:"",answer:"",intro:"",info:"",prep:"",case_sensitive:false,blocks:[],hints:[]};}
 function moveWHint(i,d){const n=i+d,hs=wiz.questions[wiz.sel].hints;if(n<0||n>=hs.length)return;[hs[i],hs[n]]=[hs[n],hs[i]];drawAdmin();}
-function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:""};wizStep=1;}
+function newWiz(){wiz={id:null,name:"",description:"",duration_min:240,max_teams:20,theme_id:adminData.themes[0]?.id||"",questions:[],sel:0,wbType:"text",wbContent:"",end_scene:{blocks:[],show_leaderboard:true},esType:"text",esContent:""};wizStep=1;}
 async function editWiz(id){const g=await a("admin_get_game",{p_game:id});wiz={id:g.id,name:g.name||"",description:g.description||"",duration_min:g.duration_min,max_teams:g.max_teams,theme_id:g.theme_id||adminData.themes[0]?.id||"",
   questions:(g.questions||[]).map(q=>({title:q.title||"",answer:q.answer||"",intro:q.intro||"",info:q.info||"",prep:q.prep||"",case_sensitive:!!q.case_sensitive,blocks:(q.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),
-    hints:(q.hints||[]).map(h=>{let bl=(h.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""}));if(!bl.length){if(h.text)bl.push({type:"text",content:h.text});if(h.media_type&&h.media_url)bl.push({type:h.media_type,content:h.media_url});}return {reveal_after_min:h.reveal_after_min,blocks:bl,_bt:"text",_bc:""};})})),sel:0,wbType:"text",wbContent:""};
+    hints:(q.hints||[]).map(h=>{let bl=(h.blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""}));if(!bl.length){if(h.text)bl.push({type:"text",content:h.text});if(h.media_type&&h.media_url)bl.push({type:h.media_type,content:h.media_url});}return {reveal_after_min:h.reveal_after_min,blocks:bl,_bt:"text",_bc:""};})})),sel:0,wbType:"text",wbContent:"",
+  end_scene:{blocks:((g.end_scene||{}).blocks||[]).map(b=>({type:b.type,content:b.text||b.url||""})),show_leaderboard:(g.end_scene?g.end_scene.show_leaderboard!==false:true)},esType:"text",esContent:""};
   wizStep=2;adminGo("wizard");}
 const setW=(f,v)=>{wiz[f]=v;};
 function viewWizard(){
@@ -1098,7 +1297,7 @@ function wizStep1(){return `<div style="display:flex;flex-direction:column;gap:1
 function wizStep2(){
   const list=wiz.questions.map((q,i)=>{const on=wiz.sel===i;return `<div ${dndRow("q",i)} style="display:flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid ${on?"#18181b":"#e4e4e7"};border-radius:10px;padding:10px 12px;background:${on?"#fafafa":"#fff"};">
     ${dndHandle("q",i)}
-    <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q${i+1}. ${esc(q.title||"Untitled")}</div>
+    <button onclick="wiz.sel=${i};drawAdmin()" style="flex:1;border:0;background:transparent;cursor:pointer;text-align:left;min-width:0;"><div style="font-weight:600;font-size:12.5px;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${wizQProblem(q)?'<span title="Missing answer, content or an empty hint — see Review" style="color:#d97706;">⚠ </span>':''}Q${i+1}. ${esc(q.title||"Untitled")}</div>
     <div style="font-size:11px;color:#a1a1aa;">${(q.blocks||[]).length} blocks · ${(q.hints||[]).length} hints</div></button>
     <button onclick="moveQ(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↑</button>
     <button onclick="moveQ(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:#a1a1aa;padding:2px 3px;">↓</button>
@@ -1273,6 +1472,31 @@ function printPrepSheet(){
     ${rows.map(r=>`<div class="q"><div class="t">Q${r.i+1}. ${esc(r.q.title||"Untitled")}${r.q.location_name?` <span class="loc">· ${esc(r.q.location_name)}</span>`:""}</div><div class="p">${esc(r.prep)}</div></div>`).join("")}`);
   w.document.close();w.focus();w.print();
 }
+// ---- Pabaigos scena (ką žaidėjai mato pasibaigus žaidimui) ---------------------------------
+function addESBlock(){const es=wiz.end_scene;if(!(wiz.esContent||"").trim())return;es.blocks.push({type:wiz.esType||"text",content:wiz.esContent.trim()});wiz.esContent="";drawAdmin();}
+function delESBlock(i){wiz.end_scene.blocks.splice(i,1);drawAdmin();}
+function moveESBlock(i,d){const bs=wiz.end_scene.blocks,n=i+d;if(n<0||n>=bs.length)return;[bs[i],bs[n]]=[bs[n],bs[i]];drawAdmin();}
+function wizEndSceneEditor(){
+  if(!wiz.end_scene)wiz.end_scene={blocks:[],show_leaderboard:true};
+  const es=wiz.end_scene;
+  const rows=es.blocks.map((b,i)=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid #e9e9eb;border-radius:9px;padding:8px 11px;background:#fff;">
+    <span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;background:#f0f0f1;color:#52525b;flex-shrink:0;">${b.type}</span>
+    <span style="flex:1;font-size:12.5px;color:#18181b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.content)}</span>
+    <button onclick="moveESBlock(${i},-1)" title="Move up" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:12px;">↑</button>
+    <button onclick="moveESBlock(${i},1)" title="Move down" style="border:0;background:transparent;cursor:pointer;color:#a1a1aa;font-size:12px;">↓</button>
+    <button onclick="delESBlock(${i})" style="border:0;background:transparent;cursor:pointer;color:#dc2626;font-size:12px;">✕</button></div>`).join("");
+  return `<div style="border:1px solid #e4e4e7;border-radius:11px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;background:#fff;">
+    <div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#18181b;">Final scene</div>
+    <div style="font-size:11.5px;color:#71717a;margin-top:2px;">Shown to players when the game is over — a closing message with text / image / video blocks. You can also change it later, even while the game is live.</div></div>
+    ${rows||'<div style="font-size:12px;color:#a1a1aa;border:1px dashed #e4e4e7;border-radius:9px;padding:12px;text-align:center;">No blocks — players see the default "Game over" screen.</div>'}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;"><select onchange="wiz.esType=this.value" style="padding:9px 10px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;background:#fff;">
+      ${[["text","Text"],["image","Image URL"],["video","Video URL"],["audio","Audio URL"],["link","Link"]].map(o=>`<option value="${o[0]}" ${(wiz.esType||"text")===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>
+      <input value="${esc(wiz.esContent||"")}" oninput="wiz.esContent=this.value" placeholder="Content or URL" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid #e4e4e7;border-radius:9px;font-size:12.5px;">
+      <button onclick="addESBlock()" style="border:1px solid #e4e4e7;cursor:pointer;padding:9px 14px;border-radius:9px;font-weight:600;font-size:12px;background:#fff;color:#18181b;">Add block</button></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#18181b;cursor:pointer;user-select:none;">
+      <input type="checkbox" ${es.show_leaderboard!==false?"checked":""} onchange="wiz.end_scene.show_leaderboard=this.checked" style="width:15px;height:15px;">
+      Show the leaderboard under the final scene</label></div>`;
+}
 function wizStep4(){
   const th=adminData.themes.find(t=>t.id===wiz.theme_id),tk=th?.tokens||{};
   const hc=wiz.questions.reduce((n,q)=>n+(q.hints||[]).length,0);
@@ -1284,11 +1508,43 @@ function wizStep4(){
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:23px;margin-top:4px;">${esc(wiz.name||"Untitled")}</div>
       <div style="font-size:13px;opacity:.9;margin-top:4px;white-space:pre-line;">${esc(wiz.description||"")}</div>
       <div style="font-size:12px;opacity:.85;margin-top:8px;">${wiz.questions.length} questions · ${hc} hints</div></div>
+    ${(()=>{const probs=wizProblems();return probs.length?`<div style="border:1px solid #fde68a;background:#fffbeb;border-radius:11px;padding:14px 16px;">
+      <div style="font-weight:600;font-size:13px;color:#92400e;">⚠ ${probs.length} empty item${probs.length===1?"":"s"} — fix before saving as Ready or activating</div>
+      <ul style="margin:8px 0 0 18px;font-size:12.5px;color:#78350f;line-height:1.7;">${probs.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>`:"";})()}
+    ${wizEndSceneEditor()}
     ${wizPrepSheet()}
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#a1a1aa;">Player preview — exactly what teams will see (all hints shown)</div>${qs}</div>`;
 }
+// Tuščio turinio patikra: hintas be nė vieno bloko su tekstu/URL, klausimas be atsakymo
+// ar be turinio. Draft leidžiam su įspėjimu; Ready/Activate — blokuojam.
+function wizProblems(){
+  const probs=[];
+  if(!(wiz.questions||[]).length)probs.push("No questions — add at least one before publishing");
+  (wiz.questions||[]).forEach((q,i)=>{
+    const label="Q"+(i+1)+(String(q.title||"").trim()?" · "+q.title:"");
+    if(!String(q.answer||"").trim())probs.push(label+": no answer");
+    if(!(String(q.intro||"").trim()||(q.blocks||[]).some(b=>String(b.content||"").trim())))
+      probs.push(label+": no content — add intro text or a block");
+    (q.hints||[]).forEach((h,hi)=>{
+      if(!(h.blocks||[]).some(b=>String(b.content||"").trim()))
+        probs.push(label+", hint "+(hi+1)+": empty — add text or media, or delete it");
+    });
+  });
+  return probs;
+}
+const wizQProblem=q=>!String(q.answer||"").trim()
+  ||!(String(q.intro||"").trim()||(q.blocks||[]).some(b=>String(b.content||"").trim()))
+  ||(q.hints||[]).some(h=>!(h.blocks||[]).some(b=>String(b.content||"").trim()));
 async function saveWiz(status){
+  const probs=wizProblems();
+  if(probs.length&&status!=="draft"){
+    alert((status==="live"?"Cannot activate":"Cannot save as ready")+" — fix these first:\n\n• "+probs.join("\n• ")+"\n\n(You can still save as draft.)");
+    return;
+  }
+  if(probs.length)toast(probs.length+" empty item"+(probs.length===1?"":"s")+" — saved as draft anyway");
   const payload={id:wiz.id||"",name:wiz.name,description:wiz.description,duration_min:wiz.duration_min,max_teams:wiz.max_teams,theme_id:wiz.theme_id,
+    end_scene:{blocks:((wiz.end_scene||{}).blocks||[]).map(b=>b.type==="text"?{type:"text",text:b.content}:{type:(b.type==="url"||b.type==="link")?"link":b.type,url:b.content}),
+      show_leaderboard:(wiz.end_scene?wiz.end_scene.show_leaderboard!==false:true)},
     questions:wiz.questions.map(q=>({title:q.title,intro:q.intro,info:q.info||"",prep:q.prep||"",case_sensitive:!!q.case_sensitive,answer:q.answer,alt_answers:[],
       blocks:q.blocks.map(b=>b.type==="text"?{type:"text",text:b.content}:{type:b.type==="url"?"link":b.type,url:b.content}),
       hints:q.hints.map(h=>({reveal_after_min:h.reveal_after_min,
@@ -1298,7 +1554,8 @@ async function saveWiz(status){
   if(status==="ready")await a("admin_set_status",{p_game:res.id,p_status:"ready"});
   else if(status==="live")await a("admin_activate",{p_game:res.id});
   else await a("admin_set_status",{p_game:res.id,p_status:"draft"});
-  toast("Saved · PIN "+res.pin);selGame=null;adminData=await a("admin_list");adminGo("games");
+  toast("Saved · PIN "+res.pin);selGame=null;wiz=null;adminData=await a("admin_list");
+  adminGo("games",false);   // be push: "atgal" po išsaugojimo neturi grąžinti į jau pateiktą vedlį
 }
 // ---- XLSX template / export -------------------------------------------------
 // Export writes exactly what import reads, so a game round-trips losslessly:
@@ -1448,6 +1705,16 @@ function viewThemes(){
 // ---- Monitor ----
 let monTimer=null,monGameId=null,monExpanded=new Set(),monLast=null;
 function toggleMon(id){if(monExpanded.has(id))monExpanded.delete(id);else monExpanded.add(id);if(monGameId)pollMon(monGameId);}
+// Dabartinės užduoties hintų grafikas: parodyti — žalia; būsimi — countdown + "Reveal now".
+function monHintRows(t){
+  const hs=t.stage_hints||[];
+  if(!hs.length)return '<span style="font-size:11px;color:#a1a1aa;">No hints on this task.</span>';
+  return hs.map(h=>h.unlocked
+    ?`<span style="font-size:11px;padding:3px 9px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;white-space:nowrap;font-weight:600;">✓ hint ${h.ord} shown</span>`
+    :`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:2px 4px 2px 9px;border-radius:6px;background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;white-space:nowrap;">
+        <span class="monCd" data-at="${Date.parse(h.unlock_at)}" data-ord="${h.ord}" style="font-weight:600;font-variant-numeric:tabular-nums;">hint ${h.ord} in …</span>
+        <button onclick="revealHint('${t.id}','${h.id}',${h.ord})" title="Show this hint to the team now" style="border:0;background:#4f46e5;color:#fff;cursor:pointer;border-radius:5px;padding:3px 8px;font-size:10.5px;font-weight:600;">Reveal now</button></span>`).join("");
+}
 function monDetail(t){
   const chips=(t.splits||[]).length?t.splits.map(s=>`<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid #f0f0f1;color:#52525b;white-space:nowrap;"><b style="color:#18181b;">Q${s.ord}</b> ${fmt(s.seconds)}${s.hints?` · ${s.hints}💡`:""}</span>`).join(""):'<span style="font-size:11px;color:#a1a1aa;">No solved tasks yet.</span>';
   return `<div style="border-top:1px dashed #e4e4e7;padding-top:9px;display:flex;flex-direction:column;gap:7px;">
@@ -1455,6 +1722,8 @@ function monDetail(t){
       <span>On current task: <b style="color:#18181b;">${fmt(t.seconds_on_stage||0)}</b></span>
       <span>Hints shown (current): <b style="color:#18181b;">${t.hints_revealed||0}</b></span>
       <span>Total: <b style="color:#18181b;">${fmt(t.total_seconds||0)}</b></span></div>
+    ${t.finished_at?"":`<div><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#a1a1aa;margin-bottom:5px;">Hints — current task</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">${monHintRows(t)}</div></div>`}
     <div><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#a1a1aa;margin-bottom:5px;">Time per solved task</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;">${chips}</div></div></div>`;
 }
@@ -1493,10 +1762,14 @@ async function pollMon(id){monGameId=id;let m;try{m=await a("admin_monitor",{p_g
         <div onclick="toggleMon('${t.id}')" title="Click for detail" style="display:flex;align-items:baseline;gap:9px;cursor:pointer;user-select:none;"><span style="font-size:11px;color:#a1a1aa;width:9px;">${open?"▾":"▸"}</span><strong style="font-size:13.5px;color:#18181b;">${esc(t.name)}</strong><span style="font-size:11px;color:#a1a1aa;">${t.players} ${t.players===1?"member":"members"}</span></div>
         <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;"><span style="font-size:12px;color:#71717a;">${fin?"Finished":(waiting?"starts in "+fmt((effMs-(Date.now()+adminOffset))/1000):(noStart?"no start set":"Q"+(t.stage_ord||1)+" "+esc(t.stage_title||"")))}</span>
           <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#18181b;font-family:'Space Grotesk',monospace;">${(waiting||noStart)?"":fmt(fin?t.total_seconds:t.seconds_on_stage)}</span>
+          ${(!fin&&!waiting&&!noStart)?(()=>{const nh=(t.stage_hints||[]).find(h=>!h.unlocked);
+            return nh?`<span class="monCd" data-at="${Date.parse(nh.unlock_at)}" data-ord="${nh.ord}" style="font-size:11px;color:#4f46e5;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;">hint ${nh.ord} in …</span>`
+              :((t.stage_hints||[]).length?'<span style="font-size:11px;color:#a1a1aa;white-space:nowrap;">all hints out</span>':"");})():""}
           <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:${fin?'#15803d':(waiting||noStart?'#4f46e5':'#6366f1')};">● ${fin?'Finished':(waiting?'Waiting':(noStart?'No start':'Playing'))}</span>
           ${(staggerMode({id:id})&&(waiting||noStart))?`<button onclick="startTeamNow('${t.id}')" title="Start this team now" style="border:0;background:#18181b;color:#fff;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Start now</button>`:""}
           <button onclick="showTeamQR('${live.pin||""}','${t.id}')" title="Joining code / QR for this team" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Join QR</button>
           <button onclick="spectate('${t.id}')" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">View</button>
+          ${(!fin&&!waiting&&!noStart)?`<button onclick="showHintFor('${t.id}')" title="Reveal the next hint to this team" style="border:1px solid #e4e4e7;background:#fff;color:#18181b;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Show hint</button>`:""}
           <button onclick="resetTeam('${t.id}')" style="border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;">Reset</button></div></div>
       <div style="height:4px;border-radius:999px;background:#ececee;overflow:hidden;"><div style="height:100%;border-radius:999px;background:${c};transition:width .4s ease;width:${pct}%;"></div></div>
       ${open?monDetail(t):""}</div>`;}).join("")
@@ -1508,13 +1781,18 @@ async function endGameMon(id){if(!confirm("End this game for all players?"))retu
 // ---- spectate a team (admin: see what the team sees) ----
 let specTeam=null;
 async function spectate(teamId){
+  if(!specTeam)navPush("spec",()=>{ $("spectator").classList.add("hidden");specTeam=null; }); // atidarymas; ↻ refresh nebe-push'ina
   specTeam=teamId;
   const st=await a("admin_team_state",{p_team:teamId});
   if(st.error){toast("Cannot load team view");return;}
   const t=st.theme||{};
   const vars=`--th-primary:${t.primary||'#4f46e5'};--th-onPrimary:${t.onPrimary||'#fff'};--th-bg:${t.bg||'#fff'};--th-ink:${t.ink||'#18181b'};--th-inkSoft:${t.inkSoft||'#52525b'};--th-muted:${t.muted||'#a1a1aa'};--th-card:${t.card||'#fff'};--th-field:${t.field||'#f4f4f5'};--th-line:${t.line||'#e4e4e7'};--th-fontDisplay:${t.fontDisplay||"'Space Grotesk',sans-serif"};--th-fontBody:${t.fontBody||'-apple-system,sans-serif'};--th-rCard:${t.rCard||'12px'};--th-rInput:${t.rInput||'10px'};`;
   let inner;
-  if(st.finished){inner=`<div style="text-align:center;padding:36px 22px;"><div style="font-size:34px;">🏁</div><div style="font-family:var(--th-fontDisplay);font-size:22px;margin-top:8px;">Finished</div><div style="color:var(--th-muted);margin-top:6px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div>`;}
+  if(st.finished){
+    // Pabaigos scena ir čia — admino "Team view" turi rodyti tą patį, ką mato žaidėjas.
+    const es=st.end_scene||null;
+    const esb=(es&&Array.isArray(es.blocks)&&es.blocks.length)?`<div style="padding:0 22px 22px;display:flex;flex-direction:column;gap:9px;text-align:left;">${es.blocks.map(pBlock).join("")}</div>`:"";
+    inner=`<div style="text-align:center;padding:36px 22px ${esb?"14px":"22px"};"><div style="font-size:34px;">🏁</div><div style="font-family:var(--th-fontDisplay);font-size:22px;margin-top:8px;">Finished</div><div style="color:var(--th-muted);margin-top:6px;font-variant-numeric:tabular-nums;">${fmt(st.total_seconds||0)}</div></div>${esb}`;}
   else if(st.paused){inner=`<div style="text-align:center;padding:40px 22px;"><div style="font-size:34px;">⏸</div><div style="font-family:var(--th-fontDisplay);font-size:22px;margin-top:8px;">Paused</div><div style="color:var(--th-inkSoft);margin-top:6px;">${esc(st.pause_message||"")}</div></div>`;}
   else if(!st.started){inner=`<div style="text-align:center;padding:44px 22px;"><div style="font-family:var(--th-fontDisplay);font-size:22px;">Waiting for start…</div></div>`;}
   else{const q=st.question;
@@ -1537,7 +1815,7 @@ async function spectate(teamId){
   document.getElementById("specTitle").textContent="Team view — "+(st.team?.name||"");
   document.getElementById("spectator").classList.remove("hidden");
 }
-function closeSpectate(){document.getElementById("spectator").classList.add("hidden");specTeam=null;}
+function closeSpectate(){document.getElementById("spectator").classList.add("hidden");specTeam=null;navDone("spec");}
 
 // boot
 setRole("player");
